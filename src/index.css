@@ -1,0 +1,144 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-void: #060609;
+    --bg-card: rgba(18, 18, 26, 0.75);
+    --border-blood: rgba(220, 38, 38, 0.25);
+    --border-blood-bright: rgba(220, 38, 38, 0.85);
+    --blood-red: #dc2626;
+    --blood-glow: rgba(220, 38, 38, 0.5);
+  }
+
+  body {
+    background-color: #07070a;
+    color: #e4e4e7;
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+    min-width: 320px;
+  }
+
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
+@media (max-width: 380px) {
+  .vignette-effect {
+    box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.9), inset 0 0 120px rgba(0, 0, 0, 0.65);
+  }
+}
+
+/* Custom Horror Typography */
+.font-creepster {
+  font-family: 'Creepster', cursive;
+}
+
+.font-nosifer {
+  font-family: 'Nosifer', cursive;
+}
+
+.font-cinzel {
+  font-family: 'Cinzel Decorative', serif;
+}
+
+.font-typewriter {
+  font-family: 'Special Elite', monospace;
+}
+
+/* Horror Atmosphere & Effects */
+.blood-glow {
+  text-shadow: 0 0 10px rgba(220, 38, 38, 0.7), 0 0 20px rgba(185, 28, 28, 0.5), 0 0 30px rgba(153, 27, 27, 0.3);
+}
+
+.blood-glow-subtle {
+  text-shadow: 0 0 8px rgba(220, 38, 38, 0.4);
+}
+
+.box-blood-glow {
+  box-shadow: 0 0 25px -5px rgba(220, 38, 38, 0.35), 0 0 10px -2px rgba(185, 28, 28, 0.2);
+}
+
+.box-blood-glow-lg {
+  box-shadow: 0 0 40px -5px rgba(220, 38, 38, 0.5), 0 0 15px 0 rgba(239, 68, 68, 0.3);
+}
+
+/* Horror Ambient Fog Effect */
+.fog-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: radial-gradient(circle at 50% 20%, rgba(185, 28, 28, 0.05) 0%, transparent 60%),
+              radial-gradient(circle at 80% 80%, rgba(153, 27, 27, 0.04) 0%, transparent 50%),
+              radial-gradient(circle at 20% 90%, rgba(76, 5, 25, 0.06) 0%, transparent 40%);
+}
+
+.vignette-effect {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.95), inset 0 0 250px rgba(0, 0, 0, 0.8);
+}
+
+/* Subtle Film Grain Noise */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #09090d;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a1114;
+  border-radius: 4px;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7f1d1d;
+}
+
+/* Pulse flicker animation */
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  41.99% { opacity: 1; }
+  42% { opacity: 0.8; }
+  43% { opacity: 1; }
+  45% { opacity: 0.3; }
+  46% { opacity: 1; }
+}
+
+.animate-flicker {
+  animation: flicker 5s infinite;
+}
+
+@keyframes pulse-slow {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.02); opacity: 1; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+@keyframes float-mist {
+  0% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(20px) translateY(-10px); }
+  100% { transform: translateX(0) translateY(0); }
+}
+
+.animate-mist {
+  animation: float-mist 12s ease-in-out infinite;
+}
