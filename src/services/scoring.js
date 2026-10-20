@@ -52,8 +52,12 @@ export function checkAnswerMatch(submitted, correct, acceptedVariations = []) {
 
 /**
  * Computes points for a submission.
- * Rule: Correct answer = 10 points, Wrong answer = 0 points.
+ * Rule:
+ * Correct answer with > 3s remaining = 10 points
+ * Correct answer with <= 3s remaining = 8 points
+ * Wrong answer = 0 points.
  */
-export function computePoints(isCorrect) {
-  return isCorrect ? 10 : 0;
+export function computePoints(isCorrect, secondsRemaining = 10) {
+  if (!isCorrect) return 0;
+  return secondsRemaining <= 3 ? 8 : 10;
 }

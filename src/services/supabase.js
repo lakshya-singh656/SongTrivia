@@ -1077,10 +1077,13 @@ export const horrorApi = {
   },
 
   // 5. SUBMIT ANSWER (SERVER-SIDE / MOCK RPC WITH DEADLINE VERIFICATION)
-  async submitAnswer(participantId, songId, selectedOption) {
+  async submitAnswer(participantId, songId, selectedOption, remainingSeconds = null) {
     if (!participantId || !songId) {
       throw new Error('Participant ID and Song ID are required.');
     }
+
+    // Determine if answered in the final 3 seconds (remainingSeconds <= 3)
+    const isLateSpeed = typeof remainingSeconds === 'number' && remainingSeconds <= 3;
 
     // Supabase RPC execution
     if (isSupabaseConfigured) {
@@ -1096,6 +1099,29 @@ export const horrorApi = {
           if (data.success === false) {
             throw new Error(data.error || 'Submission failed');
           }
+
+          // Speed Rule: If answered with 3s or fewer left, award 8 pts instead of 10 pts
+          if (data.is_correct && isLateSpeed && (data.points_awarded === 10 || !data.points_awarded)) {
+            data.points_awarded = 8;
+            data.total_score = Math.max(0, (data.total_score || 10) - 2);
+
+            try {
+              await supabase
+                .from('submissions')
+                .update({ points_awarded: 8 })
+                .eq('participant_id', participantId)
+                .eq('song_id', songId);
+
+              await supabase
+                .from('participants')
+                .update({ total_score: data.total_score })
+                .eq('id', participantId);
+            } catch (syncErr) {
+              console.warn('Could not sync 8-point adjustment to Supabase:', syncErr);
+            }
+          }
+
+          cachedLeaderboard = null;
           return data;
         }
       } catch (err) {
@@ -1131,13 +1157,16 @@ export const horrorApi = {
       throw new Error('You have already submitted an answer for this round.');
     }
 
-    // Verify session deadline
+    // Verify session deadline and calculate speed-based points
     const sessions = getLocalItem(STORAGE_KEYS.ROUND_SESSIONS, []);
     const session = sessions.find(s => s.participant_id === participantId && s.song_id === songId);
     let isExpired = false;
+    let actualRemaining = typeof remainingSeconds === 'number' ? remainingSeconds : 10;
 
     if (session && session.answer_deadline) {
       const deadlineMs = new Date(session.answer_deadline).getTime();
+      const diffSec = Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+      actualRemaining = Math.min(actualRemaining, diffSec);
       // 1.5s grace for network transit
       if (Date.now() > deadlineMs + 1500) {
         isExpired = true;
@@ -1210,7 +1239,8 @@ export const horrorApi = {
     // Compare with stored correct option
     const correctOption = (song.correct_option || 'A').toUpperCase();
     const isCorrect = cleanOption === correctOption;
-    const pointsAwarded = isCorrect ? 10 : 0;
+    // Speed Rule: > 3s remaining = 10 pts; <= 3s remaining = 8 pts
+    const pointsAwarded = isCorrect ? (actualRemaining <= 3 ? 8 : 10) : 0;
 
     const optionMap = {
       A: song.option_a,

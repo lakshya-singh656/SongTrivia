@@ -425,7 +425,7 @@ export default function GamePage({
       setIsSubmitting(true);
       clearInterval(timerIntervalRef.current);
 
-      const result = await horrorApi.submitAnswer(participant.id, currentSong.id, selectedOption);
+      const result = await horrorApi.submitAnswer(participant.id, currentSong.id, selectedOption, answerTimeRemaining);
 
       setRoundState(result.is_expired ? 'time_expired' : 'submitted');
 
@@ -456,9 +456,10 @@ export default function GamePage({
       if (showDirect) {
         if (result.is_correct) {
           try { horrorSoundEngine.playCorrectFX(); } catch (e) {}
+          const pts = result.points_awarded ?? (answerTimeRemaining <= 3 ? 8 : 10);
           setSubmissionFeedback({
             type: 'correct',
-            message: `CORRECT! Option ${selectedOption} is right. +10 Points!`
+            message: `CORRECT! Option ${selectedOption} is right. +${pts} Points!${pts === 8 ? ' (Late Answer: 8 PTS)' : ' (Speed Bonus: 10 PTS)'}`
           });
         } else {
           try { horrorSoundEngine.playWrongFX(); } catch (e) {}
@@ -871,7 +872,7 @@ export default function GamePage({
               <div className="flex items-center gap-2">
                 <Timer className={`w-5 h-5 ${isTimerCritical ? 'text-red-400 animate-spin' : 'text-amber-400 animate-pulse'}`} />
                 <span className="text-xs font-mono font-bold tracking-wider uppercase text-zinc-200">
-                  ANSWER DEADLINE
+                  {isTimerCritical ? 'LAST 3 SECONDS (8 PTS)' : 'ANSWER TIMER (10 PTS)'}
                 </span>
               </div>
               <div className={`text-xl sm:text-2xl font-mono font-black tracking-widest ${
@@ -893,9 +894,13 @@ export default function GamePage({
               />
             </div>
             
-            {isTimerCritical && (
+            {isTimerCritical ? (
               <p className="text-[11px] font-mono text-red-300 text-center mt-2 animate-bounce">
-                CRITICAL WARNING: {answerTimeRemaining} SECONDS REMAINING!
+                ⚠️ FINAL 3 SECONDS: Answers now award 8 points instead of 10!
+              </p>
+            ) : (
+              <p className="text-[11px] font-mono text-amber-300/80 text-center mt-2">
+                ⚡ Speed Zone: Submit before 3s left for full 10 points!
               </p>
             )}
           </div>
@@ -1192,9 +1197,9 @@ export default function GamePage({
                   LOCKING IN SUBMISSION...
                 </span>
               ) : selectedOption ? (
-                <span>SUBMIT OPTION {selectedOption} ({answerTimeRemaining}s LEFT)</span>
+                <span>SUBMIT OPTION {selectedOption} ({answerTimeRemaining}s LEFT &bull; {answerTimeRemaining <= 3 ? '8 PTS' : '10 PTS'})</span>
               ) : (
-                <span>SELECT AN OPTION TO SUBMIT ({answerTimeRemaining}s LEFT)</span>
+                <span>SELECT AN OPTION TO SUBMIT ({answerTimeRemaining}s LEFT &bull; {answerTimeRemaining <= 3 ? '8 PTS' : '10 PTS'})</span>
               )}
             </button>
           </div>

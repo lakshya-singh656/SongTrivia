@@ -8,10 +8,10 @@ export default function RulesModal({ isOpen, onClose }) {
     { num: 1, title: "Survivor Registration", desc: "Register using your real or survivor name before starting the challenge." },
     { num: 2, title: "Single Playback Only", desc: "Listen carefully to each 5-second song clip. Clips play ONCE without replays." },
     { num: 3, title: "Strict 10-Second Timer", desc: "A 10-second answer countdown begins automatically after audio ends. Submissions after time expires award 0 points." },
-    { num: 4, title: "Scoring: +10 Points", desc: "Every correct answer earns 10 points immediately upon server validation." },
+    { num: 4, title: "Speed Scoring: 10 or 8 Points", desc: "Correct answers submitted with more than 3 seconds left award 10 points. Correct answers in the final 3 seconds award 8 points." },
     { num: 5, title: "Zero Penalty", desc: "Wrong answers earn 0 points. There is no negative marking." },
     { num: 6, title: "30 Chilling Rounds", desc: "There are exactly 30 rounds of horror themes, movie scores, and dark anthems." },
-    { num: 7, title: "300 Points Maximum", desc: "A perfect survival run awards the maximum possible score of 300 points." },
+    { num: 7, title: "300 Points Maximum", desc: "A perfect fast survival run awards the maximum possible score of 300 points." },
     { num: 8, title: "Live Leaderboard Rankings", desc: "Final rankings are sorted by total score, then correct answers, then earliest completion time." },
 
   ];

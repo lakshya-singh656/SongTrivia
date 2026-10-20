@@ -157,7 +157,12 @@ BEGIN
 
     IF v_clean_selected = v_clean_correct THEN
       v_is_correct := TRUE;
-      v_points := 10;
+      -- Speed scoring: 8 points if submitted with 3s or less left on the timer, 10 points otherwise
+      IF v_session.answer_deadline IS NOT NULL AND (v_session.answer_deadline - v_now) <= INTERVAL '3 seconds' THEN
+        v_points := 8;
+      ELSE
+        v_points := 10;
+      END IF;
     ELSE
       v_is_correct := FALSE;
       v_points := 0;
