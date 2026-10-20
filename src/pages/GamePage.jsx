@@ -53,24 +53,6 @@ export default function GamePage({
     }
   }, [propGameSettings]);
 
-  // Handle Question Count Change from Waiting Room
-  const handleUpdateLobbyQuestionCount = async (count) => {
-    try {
-      const num = Number(count);
-      await horrorApi.updateGameSettings({ total_rounds: num });
-      setGameSettings(prev => ({ ...prev, total_rounds: num }));
-      const freshSongs = await horrorApi.getPlayableSongs(true);
-      if (freshSongs) {
-        setSongs(freshSongs);
-        if (currentRoundIndex >= num) {
-          setCurrentRoundIndex(num - 1);
-        }
-      }
-    } catch (e) {
-      console.warn('Could not update total rounds from lobby:', e);
-    }
-  };
-
   // Live Waiting Room synchronization
   const fetchWaitingList = async (showSpinner = false) => {
     try {
@@ -205,9 +187,17 @@ export default function GamePage({
     window.addEventListener('horror_songs_shuffled', handleSongsShuffled);
 
     // Supabase Realtime subscription for instant zero-polling updates
-    const unsubscribeRealtime = horrorApi.subscribeToGameSettings((fresh) => {
+    const unsubscribeRealtime = horrorApi.subscribeToGameSettings(async (fresh) => {
       if (fresh && isMounted) {
         setGameSettings(fresh);
+        if (fresh.total_rounds) {
+          try {
+            const freshSongs = await horrorApi.getPlayableSongs(true);
+            if (freshSongs && isMounted) {
+              setSongs(freshSongs);
+            }
+          } catch (e) {}
+        }
       }
     });
 
@@ -633,45 +623,6 @@ export default function GamePage({
             </div>
           </div>
 
-          {/* Question Count Option in Lobby */}
-          <div className="mb-6 p-4 rounded-2xl bg-zinc-950/80 border border-red-950/70 text-left">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-mono uppercase tracking-wider text-zinc-200 font-bold flex items-center gap-1.5">
-                  <span className="text-red-500">🎯</span>
-                  <span>Questions In This Event</span>
-                </p>
-                <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Choose between 10, 20, or 30 questions for this trivia challenge
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                {[
-                  { count: 10, label: '10 Ques', icon: '⚡' },
-                  { count: 20, label: '20 Ques', icon: '🎯' },
-                  { count: 30, label: '30 Ques', icon: '💀' }
-                ].map(item => {
-                  const isSel = totalRounds === item.count;
-                  return (
-                    <button
-                      key={item.count}
-                      type="button"
-                      onClick={() => handleUpdateLobbyQuestionCount(item.count)}
-                      className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        isSel
-                          ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.7)] border border-red-500 scale-105'
-                          : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-700'
-                      }`}
-                    >
-                      <span>{item.icon}</span>
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
 
           {/* LIVE PARTICIPANTS IN WAITING ROOM */}
           <div className="mb-6 p-4 rounded-2xl bg-zinc-950/80 border border-red-950/90 text-left">
@@ -887,28 +838,6 @@ export default function GamePage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
-            {/* Quick Question Count Switcher */}
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-zinc-950 border border-zinc-800">
-              {[10, 20, 30].map(cnt => {
-                const isSel = totalRounds === cnt;
-                return (
-                  <button
-                    key={cnt}
-                    type="button"
-                    onClick={() => handleUpdateLobbyQuestionCount(cnt)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
-                      isSel
-                        ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(220,38,38,0.7)] border border-red-500'
-                        : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-                    }`}
-                    title={`Switch challenge length to ${cnt} questions`}
-                  >
-                    {cnt}Q
-                  </button>
-                );
-              })}
-            </div>
-
             <div className="px-3.5 py-1.5 rounded-xl bg-zinc-950 border border-zinc-800 text-right">
               <span className="text-[10px] text-zinc-500 uppercase block">Correct</span>
               <span className="text-sm font-mono font-bold text-emerald-400">
