@@ -1126,23 +1126,36 @@ export const horrorApi = {
     return getLocalItem(STORAGE_KEYS.ADMIN_SESSION, null);
   },
 
-  // 8. RESET GAME (Protected with Confirmation)
+  // 8. RESET GAME / LOBBY (Wipe participants, submissions, sessions, and reset status to waiting)
   async resetGame() {
     if (isSupabaseConfigured) {
       try {
         const { error: rpcError } = await supabase.rpc('reset_horror_game');
         if (rpcError) {
-          // Fallback to direct table deletes
-          await supabase.from('round_sessions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-          await supabase.from('submissions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-          await supabase.from('participants').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+          console.warn('Supabase reset_horror_game RPC warning:', rpcError);
+        }
+        
+        // Guarantee game_settings row is reset to waiting via admin RPC
+        try {
+          await supabase.rpc('admin_update_game_settings', {
+            p_status: 'waiting',
+            p_current_round: 1,
+            p_answers_revealed: false
+          });
+        } catch (e) {}
+
+        // Fallback direct table deletes
+        try {
+          await supabase.from('round_sessions').delete().not('id', 'is', null);
+          await supabase.from('submissions').delete().not('id', 'is', null);
+          await supabase.from('participants').delete().not('id', 'is', null);
           await supabase.from('game_settings').update({
             game_status: 'waiting',
             current_round: 1,
             answers_revealed: false,
             updated_at: new Date().toISOString()
           }).eq('id', 1);
-        }
+        } catch (e) {}
       } catch (e) {
         console.warn('Supabase reset failed:', e);
       }
@@ -1151,6 +1164,10 @@ export const horrorApi = {
     setLocalItem(STORAGE_KEYS.ROUND_SESSIONS, []);
     setLocalItem(STORAGE_KEYS.SUBMISSIONS, []);
     setLocalItem(STORAGE_KEYS.PARTICIPANTS, []);
+    try {
+      localStorage.removeItem('horror_participant_session');
+    } catch (e) {}
+
     const defaultSettings = {
       id: 1,
       game_status: 'waiting',

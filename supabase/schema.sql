@@ -699,16 +699,16 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-  DELETE FROM public.round_sessions;
-  DELETE FROM public.submissions;
-  DELETE FROM public.participants;
+  DELETE FROM public.round_sessions WHERE id IS NOT NULL;
+  DELETE FROM public.submissions WHERE id IS NOT NULL;
+  DELETE FROM public.participants WHERE id IS NOT NULL;
   UPDATE public.game_settings
   SET
     game_status = 'waiting',
     current_round = 1,
     answers_revealed = FALSE,
     updated_at = NOW()
-  WHERE id = 1;
+  WHERE public.game_settings.id = 1;
   RETURN TRUE;
 END;
 $$;

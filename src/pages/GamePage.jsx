@@ -100,6 +100,7 @@ export default function GamePage({
       setAnswerDeadline(null);
       setAnswerTimeRemaining(10);
       setStats({ score: 0, correctCount: 0, completedRounds: 0 });
+      if (onNeedRegister) onNeedRegister();
     };
 
     window.addEventListener('horror_settings_updated', handleSettingsUpdate);

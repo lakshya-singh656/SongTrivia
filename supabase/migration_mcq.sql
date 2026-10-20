@@ -233,3 +233,25 @@ BEGIN
   );
 END;
 $$;
+
+-- 5. UPDATE RESET_HORROR_GAME (COMPLIES WITH SAFE UPDATE/DELETE POLICIES)
+CREATE OR REPLACE FUNCTION public.reset_horror_game()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM public.round_sessions WHERE id IS NOT NULL;
+  DELETE FROM public.submissions WHERE id IS NOT NULL;
+  DELETE FROM public.participants WHERE id IS NOT NULL;
+  UPDATE public.game_settings
+  SET
+    game_status = 'waiting',
+    current_round = 1,
+    answers_revealed = FALSE,
+    updated_at = NOW()
+  WHERE public.game_settings.id = 1;
+  RETURN TRUE;
+END;
+$$;
+

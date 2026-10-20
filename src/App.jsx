@@ -67,7 +67,14 @@ export default function App() {
     const handleSettingsUpdate = (e) => {
       if (e.detail) setGameSettings(e.detail);
     };
+    const handleGameReset = () => {
+      localStorage.removeItem('horror_participant_session');
+      setParticipant(null);
+      setCurrentView('register');
+    };
+
     window.addEventListener('horror_settings_updated', handleSettingsUpdate);
+    window.addEventListener('horror_game_reset', handleGameReset);
 
     // Periodic poll for game settings so Navbar and entire app stay in sync with remote database
     const settingsPollInterval = setInterval(async () => {
@@ -76,6 +83,21 @@ export default function App() {
         if (fresh) {
           setGameSettings(fresh);
         }
+
+        // If a participant is logged in, verify they still exist on server (wiped on lobby reset)
+        const stored = localStorage.getItem('horror_participant_session');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.id) {
+            const exists = await horrorApi.getParticipant(parsed.id);
+            if (!exists) {
+              console.info('Participant record wiped from database. Forcing re-registration.');
+              localStorage.removeItem('horror_participant_session');
+              setParticipant(null);
+              setCurrentView(prev => prev === 'game' ? 'register' : prev);
+            }
+          }
+        }
       } catch (e) {}
     }, 4000);
 
@@ -83,6 +105,7 @@ export default function App() {
       window.removeEventListener('popstate', handleLocationChange);
       window.removeEventListener('hashchange', handleLocationChange);
       window.removeEventListener('horror_settings_updated', handleSettingsUpdate);
+      window.removeEventListener('horror_game_reset', handleGameReset);
       clearInterval(settingsPollInterval);
     };
   }, []);

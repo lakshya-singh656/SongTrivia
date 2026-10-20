@@ -272,20 +272,60 @@ export default function AdminDashboard({ onAdminStateChange }) {
     }
   };
 
-  // Reset Game
+  // Reset Game / Lobby
+  const handleResetToLobby = async () => {
+    const confirmed = window.confirm(
+      "⚠️ RESET THE LOBBY?\n\nThis will:\n• Wipe all participants, scores, and round submissions\n• Set all leaderboard statistics back to 0\n• Require every participant to register again\n• Return game status to Waiting Lobby\n\nDo you want to proceed?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setUpdatingStatus(true);
+      await horrorApi.resetGame();
+      setParticipants([]);
+      setSubmissions([]);
+      setGameSettings({
+        id: 1,
+        game_status: 'waiting',
+        current_round: 1,
+        total_rounds: 30,
+        answers_revealed: false
+      });
+      await loadAdminData();
+      showSuccessBanner('Lobby has been reset! All participant scores wiped and status set to waiting.');
+    } catch (e) {
+      console.error('Reset lobby failed:', e);
+      alert('Reset failed: ' + e.message);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const handleConfirmReset = async () => {
     if (resetConfirmText.trim().toUpperCase() !== 'RESET') {
       alert('Please type "RESET" to confirm.');
       return;
     }
     try {
+      setUpdatingStatus(true);
       await horrorApi.resetGame();
       setResetModalOpen(false);
       setResetConfirmText('');
+      setParticipants([]);
+      setSubmissions([]);
+      setGameSettings({
+        id: 1,
+        game_status: 'waiting',
+        current_round: 1,
+        total_rounds: 30,
+        answers_revealed: false
+      });
       await loadAdminData();
       showSuccessBanner('Game has been reset. All submissions wiped and status set to waiting.');
     } catch (e) {
       alert('Reset failed: ' + e.message);
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -600,14 +640,15 @@ export default function AdminDashboard({ onAdminStateChange }) {
             </button>
 
             <button
-              onClick={() => handleStatusChange('waiting')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-semibold tracking-wider transition-all cursor-pointer ${
+              onClick={handleResetToLobby}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
                 gameSettings.game_status === 'waiting'
-                  ? 'bg-zinc-800 text-zinc-200'
-                  : 'bg-zinc-900/60 text-zinc-500 border border-zinc-800 hover:text-zinc-300'
+                  ? 'bg-zinc-800 text-zinc-200 border border-zinc-700'
+                  : 'bg-red-950/40 text-red-400 border border-red-800/60 hover:bg-red-900/80 hover:text-white'
               }`}
             >
-              RESET TO LOBBY
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>RESET TO LOBBY</span>
             </button>
           </div>
 
