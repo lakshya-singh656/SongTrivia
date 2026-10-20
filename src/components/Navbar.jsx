@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Skull, Trophy, Play, ShieldAlert, Menu, X, User } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Skull, Trophy, Play, ShieldAlert, Menu, X, User, Lock } from 'lucide-react';
+import { horrorApi } from '../services/supabase';
 
 export default function Navbar({ 
   currentView, 
@@ -8,6 +9,25 @@ export default function Navbar({
   gameStatus = 'waiting' 
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isOrganizerLoggedIn, setIsOrganizerLoggedIn] = useState(false);
+
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const sess = await horrorApi.getAdminSession();
+        setIsOrganizerLoggedIn(!!sess);
+      } catch (e) {}
+    }
+    checkAuth();
+
+    const handleAuthChange = (e) => {
+      setIsOrganizerLoggedIn(!!e.detail);
+    };
+    window.addEventListener('horror_admin_auth_changed', handleAuthChange);
+    return () => {
+      window.removeEventListener('horror_admin_auth_changed', handleAuthChange);
+    };
+  }, []);
 
   const getStatusBadge = () => {
     switch (gameStatus) {
@@ -95,6 +115,13 @@ export default function Navbar({
               >
                 <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-red-500' : 'text-zinc-500'}`} />
                 <span>{item.label}</span>
+                {item.id === 'admin' && (
+                  isOrganizerLoggedIn ? (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse" title="Organizer Authenticated" />
+                  ) : (
+                    <Lock className="w-3 h-3 text-zinc-500 opacity-60" title="Login Required" />
+                  )
+                )}
               </button>
             );
           })}
@@ -167,14 +194,28 @@ export default function Navbar({
               <button
                 key={item.id}
                 onClick={() => handleNav(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                   isActive
                     ? 'bg-red-950/90 text-red-400 border border-red-800/80'
                     : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100'
                 }`}
               >
-                <Icon className="w-5 h-5 text-red-500" />
-                <span>{item.label}</span>
+                <div className="flex items-center gap-3">
+                  <Icon className="w-5 h-5 text-red-500" />
+                  <span>{item.label}</span>
+                </div>
+                {item.id === 'admin' && (
+                  isOrganizerLoggedIn ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950 border border-emerald-700 text-emerald-400 font-mono font-bold">
+                      AUTHENTICATED
+                    </span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-500 font-mono flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" />
+                      LOCKED
+                    </span>
+                  )
+                )}
               </button>
             );
           })}

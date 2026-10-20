@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  ShieldAlert, LogOut, Play, Pause, Square, Eye, RotateCcw, Download, 
+  ShieldAlert, LogOut, Play, Pause, Square, Eye, EyeOff, RotateCcw, Download, 
   Upload, Music, CheckCircle2, AlertCircle, Trash2, Edit3, Save, Sparkles, User, RefreshCw,
-  Database, ExternalLink, Shuffle
+  Database, ExternalLink, Shuffle, Lock, KeyRound, ShieldCheck
 } from 'lucide-react';
 import { horrorApi, isSupabaseConfigured } from '../services/supabase';
 import { DEFAULT_HORROR_SONGS } from '../data/defaultSongs';
@@ -10,11 +10,23 @@ import AudioPlayer from '../components/AudioPlayer';
 
 export default function AdminDashboard({ onAdminStateChange }) {
   const [session, setSession] = useState(null);
-  const [emailInput, setEmailInput] = useState('admin@horrortrivia.com');
-  const [passwordInput, setPasswordInput] = useState('bloodcurdling666');
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isShaking, setIsShaking] = useState(false);
+  const [showCredentialsHint, setShowCredentialsHint] = useState(false);
   const [supabaseHealth, setSupabaseHealth] = useState(null);
+
+  // Security Modal State
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState('');
+  const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState('');
+  const [changePasswordError, setChangePasswordError] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Dashboard Data
   const [songs, setSongs] = useState([]);
@@ -120,18 +132,40 @@ export default function AdminDashboard({ onAdminStateChange }) {
     setTimeout(() => setActionSuccessMessage(''), 4000);
   };
 
+  const triggerShake = () => {
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 500);
+  };
+
   // Login handler
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!emailInput.trim()) {
+      setLoginError('Please enter your organizer email or username.');
+      triggerShake();
+      return;
+    }
+    if (!passwordInput.trim()) {
+      setLoginError('Please enter your organizer password.');
+      triggerShake();
+      return;
+    }
+
     try {
       setIsLoggingIn(true);
       setLoginError('');
-      const res = await horrorApi.adminLogin(emailInput, passwordInput);
+      const res = await horrorApi.adminLogin(emailInput, passwordInput, rememberMe);
       setSession(res.session);
-      loadAdminData();
-      showSuccessBanner('Logged into Organizer Portal.');
+      setEmailInput('');
+      setPasswordInput('');
+      if (onAdminStateChange) {
+        try { onAdminStateChange(res.session); } catch (e) {}
+      }
+      await loadAdminData();
+      showSuccessBanner('Authenticated as Event Organizer. Control room unlocked.');
     } catch (err) {
-      setLoginError(err.message || 'Login failed.');
+      setLoginError(err.message || 'Authentication failed. Please verify credentials.');
+      triggerShake();
     } finally {
       setIsLoggingIn(false);
     }
@@ -141,6 +175,45 @@ export default function AdminDashboard({ onAdminStateChange }) {
   const handleLogout = async () => {
     await horrorApi.adminLogout();
     setSession(null);
+    setEmailInput('');
+    setPasswordInput('');
+    setLoginError('');
+    if (onAdminStateChange) {
+      try { onAdminStateChange(null); } catch (e) {}
+    }
+    showSuccessBanner('Logged out of Organizer Portal.');
+  };
+
+  // Change Organizer Password handler
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setChangePasswordError('');
+    if (!currentPasswordInput) {
+      setChangePasswordError('Please enter your current password.');
+      return;
+    }
+    if (newPasswordInput.length < 6) {
+      setChangePasswordError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPasswordInput !== confirmPasswordInput) {
+      setChangePasswordError('New passwords do not match.');
+      return;
+    }
+
+    try {
+      setIsChangingPassword(true);
+      await horrorApi.changeOrganizerPassword(currentPasswordInput, newPasswordInput);
+      setShowChangePasswordModal(false);
+      setCurrentPasswordInput('');
+      setNewPasswordInput('');
+      setConfirmPasswordInput('');
+      showSuccessBanner('Organizer password updated successfully. Remember your new password for your next login!');
+    } catch (err) {
+      setChangePasswordError(err.message || 'Failed to update password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   // Update Question Count (10, 20, or 30 Questions)
@@ -536,67 +609,134 @@ export default function AdminDashboard({ onAdminStateChange }) {
   if (!session) {
     return (
       <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-[#0e0e15]/95 border border-red-900/60 rounded-3xl p-8 shadow-2xl backdrop-blur-xl">
+        <div className={`w-full max-w-md bg-[#0e0e15]/95 border border-red-900/60 rounded-3xl p-8 shadow-2xl backdrop-blur-xl transition-all ${isShaking ? 'animate-shake' : ''}`}>
           {renderSupabaseBanner()}
           <div className="text-center mb-6">
             <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-red-950/80 border border-red-700/60 flex items-center justify-center text-3xl shadow-[0_0_20px_rgba(220,38,38,0.5)]">
-              🛡️
+              <ShieldAlert className="w-8 h-8 text-red-500" />
             </div>
             <h2 className="text-2xl font-cinzel font-black text-white uppercase tracking-wider">
               Organizer Portal
             </h2>
             <p className="text-xs text-zinc-400 mt-1">
-              Restricted event management access
+              Restricted event management access &bull; Authentication required
             </p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
-                Admin Email
+              <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5 flex items-center justify-between">
+                <span>Organizer ID / Email</span>
               </label>
-              <input
-                type="email"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 bg-[#08080c] border border-zinc-800 focus:border-red-600 rounded-xl text-sm text-zinc-100 outline-none"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="admin@horrortrivia.com or organizer"
+                  autoComplete="username"
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#08080c] border border-zinc-800 focus:border-red-600 rounded-xl text-sm text-zinc-100 outline-none transition-colors"
+                />
+                <User className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
-                Password
+              <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5 flex items-center justify-between">
+                <span>Master Password</span>
               </label>
-              <input
-                type="password"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                required
-                className="w-full px-4 py-2.5 bg-[#08080c] border border-zinc-800 focus:border-red-600 rounded-xl text-sm text-zinc-100 outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="Enter organizer password"
+                  autoComplete="current-password"
+                  required
+                  className="w-full pl-10 pr-10 py-2.5 bg-[#08080c] border border-zinc-800 focus:border-red-600 rounded-xl text-sm text-zinc-100 outline-none transition-colors"
+                />
+                <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-2.5 p-1 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded bg-zinc-900 border-zinc-800 text-red-600 focus:ring-red-600 focus:ring-offset-0 cursor-pointer"
+                />
+                <span className="text-xs text-zinc-400 hover:text-zinc-300">Remember this device</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setShowCredentialsHint(!showCredentialsHint)}
+                className="text-xs text-zinc-500 hover:text-red-400 transition-colors cursor-pointer font-medium"
+              >
+                {showCredentialsHint ? 'Hide Access Guide' : 'Forgot Password?'}
+              </button>
             </div>
 
             {loginError && (
-              <div className="p-3 rounded-xl bg-red-950/70 border border-red-800 text-xs text-red-200">
-                {loginError}
+              <div className="p-3.5 rounded-xl bg-red-950/80 border border-red-800 text-xs text-red-200 flex items-start gap-2.5 shadow-md animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{loginError}</span>
               </div>
             )}
 
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm tracking-wide shadow-[0_0_20px_rgba(220,38,38,0.6)] cursor-pointer transition-all border border-red-500"
+              className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-bold text-sm tracking-wide shadow-[0_0_20px_rgba(220,38,38,0.6)] cursor-pointer transition-all border border-red-500 flex items-center justify-center gap-2"
             >
-              {isLoggingIn ? 'AUTHENTICATING...' : 'ENTER CONTROL ROOM'}
+              {isLoggingIn ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>AUTHENTICATING...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>ENTER CONTROL ROOM</span>
+                </>
+              )}
             </button>
           </form>
 
-          <div className="mt-6 p-3 rounded-xl bg-zinc-950 border border-zinc-900 text-xs text-zinc-500">
-            <span className="text-red-400 font-semibold block mb-0.5">Instant Organizer Demo:</span>
-            <span>Email: <code className="text-zinc-300">admin@horrortrivia.com</code></span><br />
-            <span>Pass: <code className="text-zinc-300">bloodcurdling666</code></span>
-          </div>
+          {showCredentialsHint && (
+            <div className="mt-5 p-4 rounded-2xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-400 space-y-2 animate-in fade-in">
+              <div className="flex items-center justify-between text-zinc-200 font-semibold">
+                <span className="flex items-center gap-1.5 text-red-400">
+                  <Lock className="w-3.5 h-3.5" />
+                  Default Event Credentials
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 font-mono text-zinc-400">
+                  Master Key
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                If you have not customized your organizer password, use the master credentials:
+              </p>
+              <div className="p-2.5 rounded-xl bg-black/60 border border-zinc-800/80 font-mono text-[11px] space-y-1">
+                <div>Email / ID: <code className="text-zinc-200 font-bold">admin@horrortrivia.com</code> (or <code className="text-zinc-200">organizer</code>)</div>
+                <div>Master Pass: <code className="text-red-400 font-bold">bloodcurdling666</code></div>
+              </div>
+              <p className="text-[10px] text-zinc-500 italic">
+                Tip: You can change the master password at any time from the &ldquo;Security&rdquo; button in the control room.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -642,7 +782,23 @@ export default function AdminDashboard({ onAdminStateChange }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-between">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              setShowChangePasswordModal(true);
+              setChangePasswordError('');
+              setCurrentPasswordInput('');
+              setNewPasswordInput('');
+              setConfirmPasswordInput('');
+            }}
+            className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
+            title="Change Organizer Master Password"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+            <span>Security</span>
+          </button>
+
           <button
             onClick={loadAdminData}
             className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 text-xs font-semibold flex items-center gap-2 cursor-pointer"
@@ -1428,6 +1584,96 @@ export default function AdminDashboard({ onAdminStateChange }) {
                 WIPE & RESET
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#0f0f17] border border-red-900/80 rounded-3xl p-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+              <div className="flex items-center gap-2 text-white font-bold text-base">
+                <KeyRound className="w-5 h-5 text-amber-400" />
+                <span>Change Organizer Password</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangePasswordModal(false)}
+                className="text-zinc-500 hover:text-zinc-200 text-xl font-bold cursor-pointer"
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4 mt-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase text-zinc-400 mb-1">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={currentPasswordInput}
+                  onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                  required
+                  placeholder="Enter current password"
+                  className="w-full px-3.5 py-2 bg-black border border-zinc-800 focus:border-red-600 rounded-xl text-sm text-zinc-100 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase text-zinc-400 mb-1">
+                  New Password (min 6 characters)
+                </label>
+                <input
+                  type="password"
+                  value={newPasswordInput}
+                  onChange={(e) => setNewPasswordInput(e.target.value)}
+                  required
+                  minLength={6}
+                  placeholder="Enter new password"
+                  className="w-full px-3.5 py-2 bg-black border border-zinc-800 focus:border-red-600 rounded-xl text-sm text-zinc-100 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase text-zinc-400 mb-1">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPasswordInput}
+                  onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                  required
+                  minLength={6}
+                  placeholder="Repeat new password"
+                  className="w-full px-3.5 py-2 bg-black border border-zinc-800 focus:border-red-600 rounded-xl text-sm text-zinc-100 outline-none"
+                />
+              </div>
+
+              {changePasswordError && (
+                <div className="p-3 rounded-xl bg-red-950/80 border border-red-800 text-xs text-red-200">
+                  {changePasswordError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePasswordModal(false)}
+                  className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold shadow-[0_0_15px_rgba(220,38,38,0.6)] cursor-pointer transition-all border border-red-500"
+                >
+                  {isChangingPassword ? 'Saving...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

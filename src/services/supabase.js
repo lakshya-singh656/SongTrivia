@@ -28,6 +28,7 @@ const STORAGE_KEYS = {
   ROUND_SESSIONS: 'horror_trivia_round_sessions_v1',
   SUBMISSIONS: 'horror_trivia_submissions_v1',
   ADMIN_SESSION: 'horror_trivia_admin_session_v1',
+  ORGANIZER_CREDS: 'horror_trivia_organizer_creds_v1',
 };
 
 
@@ -1539,76 +1540,189 @@ export const horrorApi = {
   },
 
   // 7. ADMIN AUTHENTICATION
-  async adminLogin(email, password) {
+  async adminLogin(email, password, rememberMe = false) {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPassword = (password || '').trim();
+
+    if (!cleanEmail) {
+      throw new Error('Please enter your organizer email or username.');
+    }
+    if (!cleanPassword) {
+      throw new Error('Please enter your organizer password.');
+    }
+
+    // Attempt 1: Authenticate via Supabase Auth (if project has auth users configured)
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password
+          email: cleanEmail,
+          password: cleanPassword
         });
-        if (error) {
-          const cleanEmail = (email || '').trim().toLowerCase();
-          if (cleanEmail === 'admin@horrortrivia.com' || cleanEmail === 'organizer@horrortrivia.com') {
-            console.info('Supabase Auth user not found; creating local session for organizer demo.');
-            const mockSession = {
-              email: cleanEmail,
-              token: 'horror-admin-token-' + Date.now(),
-              logged_in_at: new Date().toISOString()
-            };
-            setLocalItem(STORAGE_KEYS.ADMIN_SESSION, mockSession);
-            return { success: true, user: { email: cleanEmail }, session: mockSession };
-          }
-          throw error;
-        }
-        return { success: true, user: data.user, session: data.session };
-      } catch (err) {
-        console.warn('Supabase auth failed:', err.message);
-        const cleanEmail = (email || '').trim().toLowerCase();
-        if (cleanEmail === 'admin@horrortrivia.com' || cleanEmail === 'organizer@horrortrivia.com') {
-          const mockSession = {
-            email: cleanEmail,
-            token: 'horror-admin-token-' + Date.now(),
+        if (!error && data?.session && data?.user) {
+          const authSession = {
+            user: {
+              id: data.user.id,
+              email: data.user.email,
+              role: 'organizer',
+              auth_provider: 'supabase'
+            },
+            token: data.session.access_token,
+            rememberMe: !!rememberMe,
             logged_in_at: new Date().toISOString()
           };
-          setLocalItem(STORAGE_KEYS.ADMIN_SESSION, mockSession);
-          return { success: true, user: { email: cleanEmail }, session: mockSession };
+
+          if (rememberMe) {
+            setLocalItem(STORAGE_KEYS.ADMIN_SESSION, authSession);
+            try { sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch (e) {}
+          } else {
+            try { sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, JSON.stringify(authSession)); } catch (e) {}
+            localStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
+          }
+
+          window.dispatchEvent(new CustomEvent('horror_admin_auth_changed', { detail: authSession }));
+          return { success: true, user: authSession.user, session: authSession };
         }
-        throw err;
+      } catch (err) {
+        // Continue to master credentials verification below
       }
     }
 
-    // Local engine demo credentials check
-    const cleanEmail = (email || '').trim().toLowerCase();
-    if (cleanEmail === 'admin@horrortrivia.com' || cleanEmail === 'organizer@horrortrivia.com' || password.length >= 6) {
-      const mockSession = {
-        email: cleanEmail,
-        token: 'horror-admin-token-' + Date.now(),
-        logged_in_at: new Date().toISOString()
-      };
-      setLocalItem(STORAGE_KEYS.ADMIN_SESSION, mockSession);
-      return { success: true, user: { email: cleanEmail }, session: mockSession };
+    // Attempt 2: Strict Organizer Master / Custom Credentials Verification
+    const customCreds = getLocalItem(STORAGE_KEYS.ORGANIZER_CREDS, null);
+    
+    // Allowed Organizer Identifiers (Case-insensitive)
+    const validEmails = [
+      'admin@horrortrivia.com',
+      'organizer@horrortrivia.com',
+      'admin',
+      'organizer'
+    ];
+    if (customCreds?.email) {
+      validEmails.push(customCreds.email.toLowerCase());
+    }
+    if (import.meta.env?.VITE_ADMIN_DEFAULT_EMAIL) {
+      validEmails.push(import.meta.env.VITE_ADMIN_DEFAULT_EMAIL.toLowerCase());
     }
 
-    throw new Error('Invalid organizer credentials. (Demo login: admin@horrortrivia.com / any 6+ char password)');
+    const isEmailValid = validEmails.includes(cleanEmail);
+    if (!isEmailValid) {
+      throw new Error('Access denied: Unrecognized organizer email or username.');
+    }
+
+    // Verify Password against stored custom password or master default
+    const expectedPassword = customCreds?.password || 'bloodcurdling666';
+
+    if (cleanPassword !== expectedPassword) {
+      throw new Error('Access denied: Incorrect organizer password.');
+    }
+
+    // Create Authenticated Organizer Session
+    const organizerSession = {
+      user: {
+        id: 'organizer-master',
+        email: cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@horrortrivia.com`,
+        role: 'organizer',
+        auth_provider: 'master_key'
+      },
+      token: 'horror-organizer-auth-' + Date.now() + '-' + Math.random().toString(36).substring(2),
+      rememberMe: !!rememberMe,
+      logged_in_at: new Date().toISOString()
+    };
+
+    if (rememberMe) {
+      setLocalItem(STORAGE_KEYS.ADMIN_SESSION, organizerSession);
+      try { sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch (e) {}
+    } else {
+      try { sessionStorage.setItem(STORAGE_KEYS.ADMIN_SESSION, JSON.stringify(organizerSession)); } catch (e) {}
+      localStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
+    }
+
+    window.dispatchEvent(new CustomEvent('horror_admin_auth_changed', { detail: organizerSession }));
+    return { success: true, user: organizerSession.user, session: organizerSession };
   },
 
   async adminLogout() {
+    try { sessionStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION); } catch (e) {}
+    localStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
+
     if (isSupabaseConfigured) {
       try {
         await supabase.auth.signOut();
       } catch (e) {}
     }
-    localStorage.removeItem(STORAGE_KEYS.ADMIN_SESSION);
+
+    window.dispatchEvent(new CustomEvent('horror_admin_auth_changed', { detail: null }));
+    return { success: true };
   },
 
   async getAdminSession() {
+    // 1. Check current tab sessionStorage (default secure session)
+    try {
+      const sessStr = sessionStorage.getItem(STORAGE_KEYS.ADMIN_SESSION);
+      if (sessStr) {
+        const sess = JSON.parse(sessStr);
+        if (sess && sess.token) return sess;
+      }
+    } catch (e) {}
+
+    // 2. Check persistent localStorage (if "Remember Me" was enabled)
+    const localSess = getLocalItem(STORAGE_KEYS.ADMIN_SESSION, null);
+    if (localSess && localSess.token) {
+      return localSess;
+    }
+
+    // 3. Check Supabase Auth active session
     if (isSupabaseConfigured) {
       try {
         const { data } = await supabase.auth.getSession();
-        if (data?.session) return data.session;
+        if (data?.session?.user) {
+          return {
+            user: {
+              id: data.session.user.id,
+              email: data.session.user.email,
+              role: 'organizer',
+              auth_provider: 'supabase'
+            },
+            token: data.session.access_token,
+            logged_in_at: new Date().toISOString()
+          };
+        }
       } catch (e) {}
     }
-    return getLocalItem(STORAGE_KEYS.ADMIN_SESSION, null);
+
+    return null;
+  },
+
+  async changeOrganizerPassword(currentPassword, newPassword, newEmail = null) {
+    const customCreds = getLocalItem(STORAGE_KEYS.ORGANIZER_CREDS, null);
+    const expectedPassword = customCreds?.password || 'bloodcurdling666';
+
+    if ((currentPassword || '').trim() !== expectedPassword) {
+      throw new Error('Current organizer password does not match.');
+    }
+
+    const cleanNewPass = (newPassword || '').trim();
+    if (cleanNewPass.length < 6) {
+      throw new Error('New password must be at least 6 characters long.');
+    }
+
+    const updatedCreds = {
+      email: newEmail ? newEmail.trim().toLowerCase() : (customCreds?.email || 'admin@horrortrivia.com'),
+      password: cleanNewPass,
+      updated_at: new Date().toISOString()
+    };
+
+    setLocalItem(STORAGE_KEYS.ORGANIZER_CREDS, updatedCreds);
+    return { success: true, email: updatedCreds.email };
+  },
+
+  getOrganizerCredentialsInfo() {
+    const customCreds = getLocalItem(STORAGE_KEYS.ORGANIZER_CREDS, null);
+    return {
+      activeEmail: customCreds?.email || 'admin@horrortrivia.com',
+      hasCustomPassword: !!customCreds?.password,
+      updatedAt: customCreds?.updated_at || null
+    };
   },
 
   // 8. RESET GAME / LOBBY (Wipe participants, submissions, sessions, and reset status to waiting)

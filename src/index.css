@@ -142,3 +142,14 @@
 .animate-mist {
   animation: float-mist 12s ease-in-out infinite;
 }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%, 45%, 75% { transform: translateX(-8px); }
+  30%, 60%, 90% { transform: translateX(8px); }
+}
+
+.animate-shake {
+  animation: shake 0.45s ease-in-out;
+}
+
