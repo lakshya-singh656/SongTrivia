@@ -13,7 +13,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "1978 classic directed by John Carpenter. He came home.",
     audio_path: "",
     synth_motif: "halloween",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 2,
@@ -28,7 +28,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Your mother sews socks in hell. 1973 demonic possession masterpiece.",
     audio_path: "",
     synth_motif: "tubular",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 3,
@@ -43,7 +43,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "'Cause this is thriller, thriller night! Vincent Price narrates.",
     audio_path: "",
     synth_motif: "thriller",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 4,
@@ -58,7 +58,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Alfred Hitchcock's screeching violins at the Bates Motel.",
     audio_path: "",
     synth_motif: "psycho",
-    duration_seconds: 7.0
+    duration_seconds: 3.0
   },
   {
     round_number: 5,
@@ -73,7 +73,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Hawkins, Indiana. 1980s synth pulse and the Demogorgon.",
     audio_path: "",
     synth_motif: "stranger",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 6,
@@ -88,7 +88,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Two menacing notes from the ocean deep. You're gonna need a bigger boat.",
     audio_path: "",
     synth_motif: "jaws",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 7,
@@ -103,7 +103,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "1, 2, Freddy's coming for you... 3, 4, better lock your door.",
     audio_path: "",
     synth_motif: "elmstreet",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 8,
@@ -118,7 +118,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "I want to play a game. The dramatic violin crescendo at the final twist.",
     audio_path: "",
     synth_motif: "saw",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 9,
@@ -133,7 +133,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "If there's something strange in your neighborhood, who you gonna call?",
     audio_path: "",
     synth_motif: "ghostbusters",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 10,
@@ -148,7 +148,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Stanley Kubrick. A yellow Beetle winding up the Colorado mountains.",
     audio_path: "",
     synth_motif: "shining",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 11,
@@ -163,7 +163,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Gothic industrial cover with distorted bass and raspy whispers.",
     audio_path: "",
     synth_motif: "sweetdreams",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 12,
@@ -178,7 +178,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Paranoid 80s hit featuring Michael Jackson on the hook.",
     audio_path: "",
     synth_motif: "somebody",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 13,
@@ -193,7 +193,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "It was a graveyard smash! Caught on in a flash.",
     audio_path: "",
     synth_motif: "monstermash",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 14,
@@ -208,7 +208,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Dario Argento's witch ballet academy. Whispered eerie chant.",
     audio_path: "",
     synth_motif: "suspiria",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 15,
@@ -223,7 +223,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "'What do you want from me? Why don't you run from me?'",
     audio_path: "",
     synth_motif: "buryafriend",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 16,
@@ -238,7 +238,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Eerie theremin whistle. The truth is out there.",
     audio_path: "",
     synth_motif: "xfiles",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 17,
@@ -253,7 +253,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "They're creepy and they're kooky, mysterious and spooky. *snap snap*",
     audio_path: "",
     synth_motif: "addams",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 18,
@@ -268,7 +268,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Famous guitar riff and cowbell, used in the original Halloween opening.",
     audio_path: "",
     synth_motif: "reaper",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 19,
@@ -283,7 +283,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Prince of Darkness howling like a werewolf in a cemetery.",
     audio_path: "",
     synth_motif: "bark",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 20,
@@ -298,7 +298,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Stephen King novel soundtrack: 'I don't wanna be buried in a pet sematary...'",
     audio_path: "",
     synth_motif: "petsematary",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 21,
@@ -313,7 +313,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Industrial horror anthem: 'Dig through the ditches and burn through the witches!'",
     audio_path: "",
     synth_motif: "dragula",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 22,
@@ -328,7 +328,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Bon Scott's screaming rock anthem heading straight into the underworld.",
     audio_path: "",
     synth_motif: "highway",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 23,
@@ -343,7 +343,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "'Please allow me to introduce myself, I'm a man of wealth and taste...'",
     audio_path: "",
     synth_motif: "sympathy",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 24,
@@ -358,7 +358,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Thirteen-month-old baby, broke the lookin' glass... famous clavinet groove.",
     audio_path: "",
     synth_motif: "superstition",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 25,
@@ -373,7 +373,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "An American Werewolf in London: 'I see a bad moon rising, I see trouble on the way.'",
     audio_path: "",
     synth_motif: "badmoon",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 26,
@@ -388,7 +388,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "'Bum-bum-be-dum-bum-bum-be-dum...' Dark pop track about losing one's mind.",
     audio_path: "",
     synth_motif: "disturbia",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 27,
@@ -403,7 +403,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Shock rock legend, featured in Wayne's World backstage scene.",
     audio_path: "",
     synth_motif: "frankenstein",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 28,
@@ -418,7 +418,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "60s soft rock haunt: 'Love is kinda crazy with a spooky little girl like you.'",
     audio_path: "",
     synth_motif: "spooky",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 29,
@@ -433,7 +433,7 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "Eerie 1981 ska track with spooky flute: 'This town is coming like a ghost town...'",
     audio_path: "",
     synth_motif: "ghosttown",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   },
   {
     round_number: 30,
@@ -448,6 +448,6 @@ export const DEFAULT_HORROR_SONGS = [
     hint: "90s existential haunt: 'But I'm a creep, I'm a weirdo, what the hell am I doing here?'",
     audio_path: "",
     synth_motif: "creep",
-    duration_seconds: 5.0
+    duration_seconds: 3.0
   }
 ];

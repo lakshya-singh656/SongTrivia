@@ -11,10 +11,10 @@ export default function AudioPlayer({
   onStartPlayback,
   onAudioCompleted,
   disabled = false,
-  targetDuration = 5
+  targetDuration = 3
 }) {
-  const [actualDuration, setActualDuration] = useState(targetDuration || 5);
-  const [audioRemaining, setAudioRemaining] = useState(targetDuration || 5);
+  const [actualDuration, setActualDuration] = useState(targetDuration || 3);
+  const [audioRemaining, setAudioRemaining] = useState(targetDuration || 3);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [isProbeLoading, setIsProbeLoading] = useState(false);
   const audioControllerRef = useRef(null);
@@ -35,18 +35,18 @@ export default function AudioPlayer({
         }
 
         try {
-          const probed = await horrorSoundEngine.getAudioDuration(audioPath, targetDuration || 5.0);
+          const probed = await horrorSoundEngine.getAudioDuration(audioPath, targetDuration || 3.0);
           if (isMounted) {
             setActualDuration(probed);
             setAudioRemaining(Math.ceil(probed));
           }
         } catch (e) {
-          if (isMounted) setActualDuration(targetDuration || 5.0);
+          if (isMounted) setActualDuration(targetDuration || 3.0);
         }
       } else {
-        const synthDur = 5.0; // Procedural synth clips run for 5 seconds
+        const synthDur = 3.0; // Procedural synth clips run for 3 seconds
         setActualDuration(synthDur);
-        setAudioRemaining(5);
+        setAudioRemaining(3);
       }
     }
     probeDuration();
