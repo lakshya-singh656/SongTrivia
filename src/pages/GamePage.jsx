@@ -420,8 +420,8 @@ export default function GamePage({
       });
 
       setSubmissionFeedback({
-        type: 'wrong',
-        message: "TIME'S UP! The 10-second deadline expired. 0 points awarded."
+        type: 'submitted',
+        message: "TIME'S UP! The 10-second deadline expired. Round locked."
       });
 
       // Automatically advance to next round after timeout
@@ -479,34 +479,12 @@ export default function GamePage({
         completedRounds: result.completed_rounds
       });
 
-      // Feedback display rule (Requirement 6)
-      const showDirect = Boolean(gameSettings.answers_revealed || gameSettings.immediate_feedback);
-
-      if (showDirect) {
-        if (result.is_correct) {
-          try { horrorSoundEngine.playCorrectFX(); } catch (e) {}
-          const pts = result.points_awarded ?? (answerTimeRemaining <= 3 ? 8 : 10);
-          setSubmissionFeedback({
-            type: 'correct',
-            message: `CORRECT! Option ${selectedOption} is right. +${pts} Points!${pts === 8 ? ' (Late Answer: 8 PTS)' : ' (Speed Bonus: 10 PTS)'}`
-          });
-        } else {
-          try { horrorSoundEngine.playWrongFX(); } catch (e) {}
-          setSubmissionFeedback({
-            type: 'wrong',
-            message: result.is_expired 
-              ? "LATE SUBMISSION! The 10-second timer expired. 0 points." 
-              : `MISSED! Option ${selectedOption} is incorrect. 0 points.`
-          });
-        }
-      } else {
-        // Standard secret reveal mode: confirm submission without leaking correctness
-        try { horrorSoundEngine.playHeartbeatFX(); } catch (e) {}
-        setSubmissionFeedback({
-          type: 'submitted',
-          message: `Answer Locked! Option ${selectedOption} submitted. Official results will be revealed by the organizer.`
-        });
-      }
+      // Always confirm submission neutrally without revealing whether the answer is right or wrong
+      try { horrorSoundEngine.playHeartbeatFX(); } catch (e) {}
+      setSubmissionFeedback({
+        type: 'submitted',
+        message: `Answer Locked! Option ${selectedOption} recorded. Results will be revealed by the organizer.`
+      });
 
       // Check if finished 30 rounds
       if (result.completed_rounds >= totalRounds) {
@@ -759,26 +737,43 @@ export default function GamePage({
             Congratulations, survivor {participant.name}. All {totalRounds} rounds are locked and evaluated.
           </p>
 
-          <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-zinc-950 border border-zinc-900 mb-8 max-w-lg mx-auto">
-            <div>
-              <p className="text-xs text-zinc-500 uppercase tracking-wider">Final Score</p>
-              <p className="text-2xl sm:text-3xl font-black font-mono text-red-500 mt-1">
-                {stats.score} <span className="text-xs text-zinc-500 font-normal">/ {totalRounds * 10}</span>
-              </p>
+          {gameSettings.answers_revealed ? (
+            <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-zinc-950 border border-zinc-900 mb-8 max-w-lg mx-auto">
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Final Score</p>
+                <p className="text-2xl sm:text-3xl font-black font-mono text-red-500 mt-1">
+                  {stats.score} <span className="text-xs text-zinc-500 font-normal">/ {totalRounds * 10}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Correct</p>
+                <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 mt-1">
+                  {stats.correctCount} <span className="text-xs text-zinc-500 font-normal">/ {totalRounds}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Accuracy</p>
+                <p className="text-2xl sm:text-3xl font-black font-mono text-amber-400 mt-1">
+                  {totalRounds > 0 ? Math.round((stats.correctCount / totalRounds) * 100) : 0}%
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-zinc-500 uppercase tracking-wider">Correct</p>
-              <p className="text-2xl sm:text-3xl font-black font-mono text-emerald-400 mt-1">
-                {stats.correctCount} <span className="text-xs text-zinc-500 font-normal">/ {totalRounds}</span>
-              </p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-zinc-950 border border-zinc-900 mb-8 max-w-lg mx-auto">
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Rounds Answered</p>
+                <p className="text-2xl sm:text-3xl font-black font-mono text-zinc-200 mt-1">
+                  {stats.completedRounds} <span className="text-xs text-zinc-500 font-normal">/ {totalRounds}</span>
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Evaluation Status</p>
+                <p className="text-sm sm:text-base font-black font-mono text-amber-400 mt-2">
+                  LOCKED &bull; UNDER REVIEW
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-zinc-500 uppercase tracking-wider">Accuracy</p>
-              <p className="text-2xl sm:text-3xl font-black font-mono text-amber-400 mt-1">
-                {totalRounds > 0 ? Math.round((stats.correctCount / totalRounds) * 100) : 0}%
-              </p>
-            </div>
-          </div>
+          )}
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
@@ -839,16 +834,16 @@ export default function GamePage({
 
           <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
             <div className="px-3.5 py-1.5 rounded-xl bg-zinc-950 border border-zinc-800 text-right">
-              <span className="text-[10px] text-zinc-500 uppercase block">Correct</span>
-              <span className="text-sm font-mono font-bold text-emerald-400">
-                {stats.correctCount} / {totalRounds}
+              <span className="text-[10px] text-zinc-500 uppercase block">Answered</span>
+              <span className="text-sm font-mono font-bold text-zinc-200">
+                {stats.completedRounds} / {totalRounds}
               </span>
             </div>
 
             <div className="px-4 py-1.5 rounded-xl bg-red-950/70 border border-red-800/80 text-right shadow-[0_0_15px_rgba(220,38,38,0.3)]">
-              <span className="text-[10px] text-red-400 uppercase font-semibold block">Total Score</span>
+              <span className="text-[10px] text-red-400 uppercase font-semibold block">Round Status</span>
               <span className="text-base font-mono font-black text-white">
-                {stats.score} <span className="text-xs font-normal text-red-300">/ {totalRounds * 10} PTS</span>
+                {stats.completedRounds >= totalRounds ? 'FINISHED' : `ROUND ${currentRoundNum}`}
               </span>
             </div>
           </div>
@@ -959,27 +954,10 @@ export default function GamePage({
               </div>
             ) : (
               <div className="my-3">
-                {/* Check if answers revealed */}
-                {gameSettings.answers_revealed ? (
-                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold mb-3">
-                    {currentSubmission?.is_correct ? (
-                      <span className="bg-emerald-950 text-emerald-300 border border-emerald-800 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        CORRECT &bull; +10 POINTS
-                      </span>
-                    ) : (
-                      <span className="bg-red-950 text-red-400 border border-red-800 px-3.5 py-1 rounded-full flex items-center gap-1.5">
-                        <XCircle className="w-3.5 h-3.5 text-red-500" />
-                        MISSED &bull; 0 POINTS
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-semibold bg-zinc-900 border border-zinc-800 text-zinc-300 mb-3">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>Answer Recorded &bull; Results Revealed by Organizer</span>
-                  </div>
-                )}
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-semibold bg-zinc-900 border border-zinc-800 text-zinc-300 mb-3">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Answer Recorded &bull; Results Revealed by Organizer</span>
+                </div>
               </div>
             )}
 
@@ -992,19 +970,11 @@ export default function GamePage({
                 { key: 'D', text: currentSong?.option_d }
               ].map(opt => {
                 const isSelected = (currentSubmission?.selected_option || selectedOption) === opt.key;
-                const isCorrect = gameSettings.answers_revealed && currentSong?.correct_option === opt.key;
-                const isWrongSelection = gameSettings.answers_revealed && isSelected && !isCorrect;
 
                 let cardStyle = "border-zinc-900 bg-[#08080c] opacity-40 text-zinc-500";
                 let badgeStyle = "bg-zinc-900 border border-zinc-800 text-zinc-600";
 
-                if (isCorrect) {
-                  cardStyle = "border-emerald-500 bg-emerald-950/70 shadow-[0_0_20px_rgba(16,185,129,0.4)] text-emerald-100 opacity-100 ring-1 ring-emerald-500";
-                  badgeStyle = "bg-emerald-600 text-white font-bold shadow";
-                } else if (isWrongSelection) {
-                  cardStyle = "border-red-600 bg-red-950/70 shadow-[0_0_20px_rgba(220,38,38,0.4)] text-red-200 opacity-100 ring-1 ring-red-600";
-                  badgeStyle = "bg-red-700 text-white font-bold";
-                } else if (isSelected) {
+                if (isSelected) {
                   cardStyle = "border-red-500/80 bg-red-950/50 shadow-[0_0_15px_rgba(220,38,38,0.3)] text-zinc-100 opacity-100";
                   badgeStyle = "bg-red-600 text-white font-bold";
                 }
@@ -1024,17 +994,7 @@ export default function GamePage({
                     </div>
 
                     <div className="shrink-0 text-right">
-                      {isCorrect && (
-                        <span className="text-[10px] font-mono font-bold uppercase text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
-                          {isSelected ? 'YOUR PICK &bull; CORRECT' : 'CORRECT ANSWER'}
-                        </span>
-                      )}
-                      {isWrongSelection && (
-                        <span className="text-[10px] font-mono font-bold uppercase text-red-400 bg-red-950 px-2 py-0.5 rounded border border-red-800">
-                          YOUR PICK &bull; MISSED
-                        </span>
-                      )}
-                      {!gameSettings.answers_revealed && isSelected && (
+                      {isSelected && (
                         <span className="text-[10px] font-mono font-bold uppercase text-red-300 bg-red-950/80 px-2 py-0.5 rounded border border-red-800">
                           YOUR SELECTION
                         </span>
@@ -1044,13 +1004,6 @@ export default function GamePage({
                 );
               })}
             </div>
-
-            {/* Revealed Canonical Info (if organizer enabled reveal mode) */}
-            {gameSettings.answers_revealed && currentSong?.correct_answer && (
-              <div className="mt-3 p-3 bg-red-950/30 border border-red-900/50 rounded-xl text-xs text-red-200 max-w-md mx-auto">
-                Official Answer: <span className="font-bold text-white">Option {currentSong.correct_option}: {currentSong.correct_answer}</span>
-              </div>
-            )}
 
             {/* Automatic round advance status indicator (Proceed button removed) */}
             {currentRoundIndex < totalRounds - 1 ? (
@@ -1190,20 +1143,8 @@ export default function GamePage({
 
             {/* Submission Feedback Message */}
             {submissionFeedback && (
-              <div className={`p-3.5 rounded-xl border text-xs flex items-center gap-2.5 ${
-                submissionFeedback.type === 'correct'
-                  ? 'bg-emerald-950/70 border-emerald-700 text-emerald-200'
-                  : submissionFeedback.type === 'wrong'
-                  ? 'bg-red-950/70 border-red-700 text-red-200'
-                  : 'bg-zinc-900/90 border-zinc-700 text-zinc-200'
-              }`}>
-                {submissionFeedback.type === 'correct' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                ) : submissionFeedback.type === 'wrong' ? (
-                  <XCircle className="w-4 h-4 text-red-400 shrink-0" />
-                ) : (
-                  <Lock className="w-4 h-4 text-amber-400 shrink-0" />
-                )}
+              <div className="p-3.5 rounded-xl border text-xs flex items-center gap-2.5 bg-zinc-900/90 border-zinc-800 text-zinc-200">
+                <CheckCircle2 className="w-4 h-4 text-zinc-400 shrink-0" />
                 <span>{submissionFeedback.message}</span>
               </div>
             )}
@@ -1242,10 +1183,10 @@ export default function GamePage({
           <span>ROUNDS MATRIX (1 - {totalRounds})</span>
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" /> Correct
+              <span className="w-2.5 h-2.5 rounded-full bg-red-900 border border-red-700" /> Answered
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-600" /> Missed / Expired
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_6px_rgba(220,38,38,0.8)]" /> Current
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-zinc-800" /> Unanswered
@@ -1263,9 +1204,7 @@ export default function GamePage({
             let bgClass = "bg-zinc-900 text-zinc-500 border-zinc-800 opacity-60 cursor-not-allowed";
 
             if (sub) {
-              bgClass = sub.is_correct 
-                ? "bg-emerald-950/80 text-emerald-300 border-emerald-700 cursor-pointer" 
-                : "bg-red-950/80 text-red-400 border-red-800 cursor-pointer";
+              bgClass = "bg-red-950/60 text-red-300 border-red-800/80 cursor-pointer hover:bg-red-900/60 shadow-sm";
             } else if (isCurrent) {
               bgClass = "bg-red-950/40 text-red-200 border-red-600 ring-2 ring-red-500 font-bold scale-105 shadow-[0_0_10px_rgba(220,38,38,0.5)]";
             }
