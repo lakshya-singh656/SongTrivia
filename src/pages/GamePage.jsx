@@ -148,8 +148,23 @@ export default function GamePage({
       if (onNeedRegister) onNeedRegister();
     };
 
+    const handleSongsShuffled = async () => {
+      try {
+        const freshSongs = await horrorApi.getPlayableSongs(true);
+        if (freshSongs && isMounted) {
+          setSongs(freshSongs);
+          if (gameSettings.game_status === 'waiting' || Object.keys(submissions).length === 0) {
+            setCurrentRoundIndex(0);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to refresh shuffled songs:', e);
+      }
+    };
+
     window.addEventListener('horror_settings_updated', handleSettingsUpdate);
     window.addEventListener('horror_game_reset', handleReset);
+    window.addEventListener('horror_songs_shuffled', handleSongsShuffled);
 
     // Supabase Realtime subscription for instant zero-polling updates
     const unsubscribeRealtime = horrorApi.subscribeToGameSettings((fresh) => {
@@ -179,6 +194,7 @@ export default function GamePage({
       isMounted = false;
       window.removeEventListener('horror_settings_updated', handleSettingsUpdate);
       window.removeEventListener('horror_game_reset', handleReset);
+      window.removeEventListener('horror_songs_shuffled', handleSongsShuffled);
       if (unsubscribeRealtime) unsubscribeRealtime();
       if (pollTimerId) clearTimeout(pollTimerId);
       clearTimeout(autoAdvanceTimeoutRef.current);

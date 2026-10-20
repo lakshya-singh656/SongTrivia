@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, LogOut, Play, Pause, Square, Eye, RotateCcw, Download, 
   Upload, Music, CheckCircle2, AlertCircle, Trash2, Edit3, Save, Sparkles, User, RefreshCw,
-  Database, ExternalLink
+  Database, ExternalLink, Shuffle
 } from 'lucide-react';
 import { horrorApi, isSupabaseConfigured } from '../services/supabase';
 import { DEFAULT_HORROR_SONGS } from '../data/defaultSongs';
@@ -36,6 +36,7 @@ export default function AdminDashboard({ onAdminStateChange }) {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [actionSuccessMessage, setActionSuccessMessage] = useState('');
+  const [isShuffling, setIsShuffling] = useState(false);
 
   // Check health and session on load
   useEffect(() => {
@@ -207,6 +208,26 @@ export default function AdminDashboard({ onAdminStateChange }) {
       showSuccessBanner(nextVal ? 'Correct answers are now REVEALED to participants!' : 'Answers hidden.');
     } catch (e) {
       alert('Error toggling reveal: ' + e.message);
+    }
+  };
+
+  // Shuffle 30 Rounds & MCQ Options
+  const handleShuffleSongs = async () => {
+    const confirmed = window.confirm(
+      "🔀 SHUFFLE QUESTIONS & OPTIONS?\n\nThis will randomly reorder all 30 rounds and shuffle the multiple-choice options (A, B, C, D) for each question.\n\nAll connected survivors will instantly receive the newly shuffled questions.\n\nDo you want to proceed?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsShuffling(true);
+      await horrorApi.shuffleSongs();
+      await loadAdminData();
+      showSuccessBanner("🔀 All 30 questions and multiple-choice options have been shuffled!");
+    } catch (err) {
+      console.error("Shuffle failed:", err);
+      alert("Shuffle failed: " + (err.message || 'Unknown error'));
+    } finally {
+      setIsShuffling(false);
     }
   };
 
@@ -689,8 +710,18 @@ export default function AdminDashboard({ onAdminStateChange }) {
             </button>
           </div>
 
-          {/* Reveal & Reset Buttons */}
-          <div className="flex items-center gap-3">
+          {/* Reveal, Shuffle & Reset Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleShuffleSongs}
+              disabled={isShuffling}
+              className="px-4 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-200 hover:text-white border border-purple-700/80 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-[0_0_15px_rgba(168,85,247,0.35)] disabled:opacity-50"
+              title="Randomize question sequence across rounds 1-30 and shuffle choices A, B, C, D"
+            >
+              <Shuffle className={`w-3.5 h-3.5 text-purple-400 ${isShuffling ? 'animate-spin' : ''}`} />
+              <span>{isShuffling ? 'SHUFFLING...' : 'SHUFFLE QUESTIONS'}</span>
+            </button>
+
             <button
               onClick={handleToggleReveal}
               className={`px-4 py-2 rounded-xl text-xs font-bold tracking-wider flex items-center gap-2 transition-all cursor-pointer ${
@@ -803,13 +834,25 @@ export default function AdminDashboard({ onAdminStateChange }) {
               Configure each round's song title, correct answer, accepted variations, and audio clip.
             </p>
 
-            <button
-              onClick={handleSeedSongs}
-              className="px-4 py-2 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-red-400" />
-              <span>Seed 30 Iconic Horror Songs</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                onClick={handleShuffleSongs}
+                disabled={isShuffling}
+                className="px-4 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-200 hover:text-white border border-purple-700/80 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md transition-all disabled:opacity-50"
+                title="Randomize question sequence across rounds 1-30 and shuffle choices A, B, C, D"
+              >
+                <Shuffle className={`w-3.5 h-3.5 text-purple-400 ${isShuffling ? 'animate-spin' : ''}`} />
+                <span>{isShuffling ? 'Shuffling...' : 'Shuffle Questions & Options'}</span>
+              </button>
+
+              <button
+                onClick={handleSeedSongs}
+                className="px-4 py-2 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-red-400" />
+                <span>Seed 30 Iconic Horror Songs</span>
+              </button>
+            </div>
           </div>
 
           {/* Songs Table */}

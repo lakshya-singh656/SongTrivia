@@ -181,6 +181,18 @@ function initRealtimeSync() {
         window.dispatchEvent(new CustomEvent('horror_game_reset'));
         window.dispatchEvent(new CustomEvent('horror_participant_changed'));
       })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'songs'
+      }, () => {
+        cachedSongs = null;
+        window.dispatchEvent(new CustomEvent('horror_songs_shuffled'));
+      })
+      .on('broadcast', { event: 'songs_shuffled' }, () => {
+        cachedSongs = null;
+        window.dispatchEvent(new CustomEvent('horror_songs_shuffled'));
+      })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.info('Connected to Supabase Realtime Hub (optimized for 100+ participants)');
@@ -570,6 +582,137 @@ export const horrorApi = {
     songs.sort((a, b) => a.round_number - b.round_number);
     setLocalItem(STORAGE_KEYS.SONGS, songs);
     return updatedSong;
+  },
+
+  // 2b. SHUFFLE SONGS & OPTIONS (Randomize rounds 1-30 and multiple-choice options A, B, C, D)
+  async shuffleSongs() {
+    // 1. Fetch current songs or fallback to default horror songs
+    let existingSongs = await this.getAllAdminSongs();
+    if (!existingSongs || existingSongs.length < 30) {
+      existingSongs = [...DEFAULT_HORROR_SONGS];
+    }
+
+    // Fisher-Yates array shuffler
+    const shuffleArray = (array) => {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    // 2. Shuffle question order (rounds 1-30 randomized)
+    const shuffledQuestionOrder = shuffleArray(existingSongs);
+
+    // 3. For each question, shuffle its 4 options (A, B, C, D) and recalculate the correct_option pointer
+    const letterKeys = ['A', 'B', 'C', 'D'];
+    const cleanStr = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+    const shuffledSongs = shuffledQuestionOrder.map((song, index) => {
+      const roundNum = index + 1;
+      
+      // Determine what the current correct answer text is
+      const origCorr = (song.correct_option || 'A').toUpperCase();
+      const origCorrText = song.correct_answer || song[`option_${origCorr.toLowerCase()}`] || song.option_a;
+
+      // Extract the 4 options
+      const optA = (song.option_a || '').trim();
+      const optB = (song.option_b || '').trim();
+      const optC = (song.option_c || '').trim();
+      const optD = (song.option_d || '').trim();
+
+      const origOptions = [optA, optB, optC, optD];
+
+      // Shuffle the 4 options
+      const shuffledOpts = shuffleArray(origOptions);
+
+      // Find which index (0, 1, 2, 3) now holds the correct answer text
+      const newCorrIndex = shuffledOpts.findIndex(opt => cleanStr(opt) === cleanStr(origCorrText));
+      const safeCorrIndex = newCorrIndex >= 0 ? newCorrIndex : 0;
+      const newCorrOption = letterKeys[safeCorrIndex];
+      const newCorrAnswer = shuffledOpts[safeCorrIndex];
+
+      return {
+        id: song.id || `song-${roundNum}`,
+        round_number: roundNum,
+        title: song.title || `Round ${roundNum}`,
+        artist: song.artist || '',
+        audio_path: song.audio_path || '',
+        duration_seconds: Number(song.duration_seconds) || 5.0,
+        option_a: shuffledOpts[0],
+        option_b: shuffledOpts[1],
+        option_c: shuffledOpts[2],
+        option_d: shuffledOpts[3],
+        correct_option: newCorrOption,
+        correct_answer: newCorrAnswer,
+        accepted_answers: [newCorrAnswer],
+        hint: song.hint || '',
+        synth_motif: song.synth_motif || null,
+        created_at: song.created_at || new Date().toISOString()
+      };
+    });
+
+    // 4. Update in Supabase (if configured)
+    if (isSupabaseConfigured) {
+      try {
+        const rowsToUpsert = shuffledSongs.map(s => ({
+          round_number: s.round_number,
+          title: s.title,
+          audio_path: s.audio_path || '',
+          duration_seconds: s.duration_seconds,
+          option_a: s.option_a,
+          option_b: s.option_b,
+          option_c: s.option_c,
+          option_d: s.option_d,
+          correct_option: s.correct_option,
+          correct_answer: s.correct_answer,
+          accepted_answers: s.accepted_answers,
+          hint: s.hint,
+          synth_motif: s.synth_motif
+        }));
+
+        const { error: upsertErr } = await supabase
+          .from('songs')
+          .upsert(rowsToUpsert, { onConflict: 'round_number' });
+
+        if (upsertErr) {
+          console.warn('Batch upsert on songs failed, saving sequentially:', upsertErr);
+          for (const s of shuffledSongs) {
+            await this.saveSong(s);
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase shuffle save failed:', err);
+        for (const s of shuffledSongs) {
+          try {
+            await this.saveSong(s);
+          } catch (e) {}
+        }
+      }
+    }
+
+    // 5. Update Local Storage
+    setLocalItem(STORAGE_KEYS.SONGS, shuffledSongs);
+
+    // 6. Invalidate caches
+    cachedSongs = null;
+
+    // 7. Broadcast instant Realtime notification to all connected browser sessions
+    if (realtimeChannel) {
+      try {
+        realtimeChannel.send({
+          type: 'broadcast',
+          event: 'songs_shuffled',
+          payload: { timestamp: Date.now() }
+        });
+      } catch (e) {
+        console.warn('Realtime broadcast songs_shuffled error:', e);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('horror_songs_shuffled'));
+    return shuffledSongs;
   },
 
   // 3. PARTICIPANTS
