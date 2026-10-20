@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Volume2, Music, CheckCircle2, Lock } from 'lucide-react';
+import { Volume2, Music, Lock, Radio } from 'lucide-react';
 import { horrorSoundEngine } from '../services/soundGenerator';
 
 export default function AudioPlayer({ 
@@ -16,8 +16,11 @@ export default function AudioPlayer({
   const [actualDuration, setActualDuration] = useState(targetDuration || 3);
   const [audioRemaining, setAudioRemaining] = useState(targetDuration || 3);
   const [playbackProgress, setPlaybackProgress] = useState(0);
-  const [isProbeLoading, setIsProbeLoading] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [isAutoplayBlocked, setIsAutoplayBlocked] = useState(false);
   const audioControllerRef = useRef(null);
+  const autoPlayTimerRef = useRef(null);
+  const blockedAudioElementRef = useRef(null);
 
   // Probe audio duration from file metadata on mount or audioPath change
   useEffect(() => {
@@ -65,6 +68,19 @@ export default function AudioPlayer({
     horrorSoundEngine.stopAudio();
   };
 
+  // Listen for browser autoplay block events
+  useEffect(() => {
+    const handleAutoplayBlocked = (e) => {
+      blockedAudioElementRef.current = e?.detail?.audio || null;
+      setIsAutoplayBlocked(true);
+    };
+
+    window.addEventListener('horror_autoplay_blocked', handleAutoplayBlocked);
+    return () => {
+      window.removeEventListener('horror_autoplay_blocked', handleAutoplayBlocked);
+    };
+  }, []);
+
   const handleStartPlay = async () => {
     // If already played, disabled, or currently playing: strictly reject
     if (hasPlayed || isPlaying || disabled) return;
@@ -80,6 +96,7 @@ export default function AudioPlayer({
 
       setAudioRemaining(Math.ceil(actualDuration));
       setPlaybackProgress(0);
+      setIsAutoplayBlocked(false);
 
       const onProgress = (stats) => {
         setPlaybackProgress(stats.progress || 0);
@@ -118,6 +135,42 @@ export default function AudioPlayer({
     }
   };
 
+  // Auto-play after 2 seconds without any timer shown
+  useEffect(() => {
+    // If already played, playing, or disabled: do not schedule auto-play
+    if (hasPlayed || isPlaying || disabled) {
+      setIsPreparing(false);
+      clearTimeout(autoPlayTimerRef.current);
+      return;
+    }
+
+    setIsPreparing(true);
+    clearTimeout(autoPlayTimerRef.current);
+
+    autoPlayTimerRef.current = setTimeout(() => {
+      setIsPreparing(false);
+      handleStartPlay();
+    }, 2000);
+
+    return () => {
+      clearTimeout(autoPlayTimerRef.current);
+    };
+  }, [roundNumber, hasPlayed, isPlaying, disabled, audioPath, actualDuration]);
+
+  // Handle browser gesture unlock if autoplay was blocked
+  const handleAutoplayUnlock = () => {
+    setIsAutoplayBlocked(false);
+    if (blockedAudioElementRef.current) {
+      try {
+        blockedAudioElementRef.current.play();
+      } catch (e) {
+        handleStartPlay();
+      }
+    } else {
+      handleStartPlay();
+    }
+  };
+
   // Prevent right-click context menu and inspect on player
   const handleContextMenu = (e) => {
     e.preventDefault();
@@ -135,31 +188,45 @@ export default function AudioPlayer({
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-red-950/60 border border-red-800/40 flex items-center justify-center text-red-500">
-            <Music className="w-4 h-4 animate-pulse" />
+          <div className={`w-9 h-9 rounded-lg border flex items-center justify-center transition-colors ${
+            isPlaying 
+              ? 'bg-red-950/80 border-red-700 text-red-500 shadow-[0_0_15px_rgba(220,38,38,0.5)]' 
+              : isPreparing
+              ? 'bg-amber-950/60 border-amber-700/60 text-amber-400'
+              : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+          }`}>
+            <Music className={`w-4 h-4 ${isPlaying ? 'animate-bounce' : isPreparing ? 'animate-pulse' : ''}`} />
           </div>
           <div>
-            <h4 className="text-sm font-bold tracking-wider uppercase text-zinc-100">
+            <h4 className="text-sm font-bold tracking-wider uppercase text-zinc-100 font-cinzel">
               Round {roundNumber ? `#${roundNumber}` : ''}
             </h4>
             <p className="text-xs text-zinc-400">
-              {actualDuration ? `${actualDuration}s Song Clip` : 'Song Clip'}
+              {actualDuration ? `${actualDuration}s Song Clip` : '3s Song Clip'}
             </p>
           </div>
         </div>
 
-        {/* Status Badge */}
+        {/* Status Badge (No timer shown during 2s pause) */}
         <div>
-          {isPlaying && (
+          {isPlaying ? (
             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-950 text-red-400 border border-red-700 shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-              PLAYING
+              PLAYING AUDIO
             </span>
-          )}
-          {hasPlayed && (
+          ) : hasPlayed ? (
             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-zinc-900 text-zinc-500 border border-zinc-800">
               <Lock className="w-3 h-3 text-zinc-500" />
-              PLAYED
+              AUDIO FINISHED
+            </span>
+          ) : isPreparing ? (
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-950/70 text-amber-400 border border-amber-700/60 shadow-[0_0_15px_rgba(245,158,11,0.25)] animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              GET READY
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-zinc-900 text-zinc-500 border border-zinc-800">
+              STANDBY
             </span>
           )}
         </div>
@@ -172,13 +239,17 @@ export default function AudioPlayer({
         {visualizerBars.map((height, i) => {
           const animatedHeight = isPlaying 
             ? Math.max(15, Math.min(100, height * (0.4 + Math.sin((i + Date.now()/200)) * 0.6)))
-            : 18;
+            : isPreparing
+            ? Math.max(12, Math.min(40, height * 0.3))
+            : 15;
           return (
             <div
               key={i}
               className={`w-1.5 rounded-full transition-all duration-150 ${
                 isPlaying 
                   ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.85)]' 
+                  : isPreparing
+                  ? 'bg-amber-600/70'
                   : hasPlayed
                   ? 'bg-zinc-900'
                   : 'bg-zinc-800'
@@ -189,19 +260,29 @@ export default function AudioPlayer({
         })}
       </div>
 
-      {/* Progress Bar & Audio Remaining Countdown */}
+      {/* Progress Bar & Audio Progress */}
       <div className="mb-4">
         <div className="w-full bg-zinc-950 h-2 rounded-full overflow-hidden border border-zinc-900 relative">
           <div 
-            className="h-full bg-gradient-to-r from-red-800 to-red-500 transition-all duration-100 shadow-[0_0_12px_rgba(220,38,38,0.8)]"
-            style={{ width: `${Math.min(100, Math.max(0, playbackProgress))}%` }}
+            className={`h-full transition-all duration-100 ${
+              isPlaying 
+                ? 'bg-gradient-to-r from-red-800 to-red-500 shadow-[0_0_12px_rgba(220,38,38,0.8)]' 
+                : isPreparing
+                ? 'bg-amber-600/40 animate-pulse'
+                : 'bg-zinc-900'
+            }`}
+            style={{ width: isPlaying ? `${Math.min(100, Math.max(0, playbackProgress))}%` : isPreparing ? '100%' : '0%' }}
           />
         </div>
 
         <div className="flex justify-between items-center text-xs mt-2 font-mono">
-          <span className={`font-semibold ${isPlaying ? 'text-red-400 animate-pulse' : 'text-zinc-500'}`}>
+          <span className={`font-semibold ${
+            isPlaying ? 'text-red-400 animate-pulse' : isPreparing ? 'text-amber-400/90' : 'text-zinc-500'
+          }`}>
             {isPlaying 
               ? `${audioRemaining}s remaining` 
+              : isPreparing
+              ? 'Preparing clip...'
               : hasPlayed 
               ? 'Finished' 
               : `${actualDuration}s Clip`}
@@ -209,47 +290,50 @@ export default function AudioPlayer({
         </div>
       </div>
 
-      {/* Controls Row */}
+      {/* Status Bar (No Play Audio button) */}
       <div className="flex items-center justify-between pt-2 border-t border-zinc-900/80">
-        <div className="text-xs text-zinc-400">
-          {hasPlayed ? (
+        <div className="text-xs">
+          {isPlaying ? (
+            <span className="text-red-400 font-semibold animate-pulse flex items-center gap-1.5">
+              <Volume2 className="w-3.5 h-3.5" />
+              Listening to song clip...
+            </span>
+          ) : isPreparing ? (
+            <span className="text-amber-300/90 flex items-center gap-1.5 animate-pulse">
+              <Radio className="w-3.5 h-3.5 text-amber-400" />
+              Audio starting in a moment... Listen carefully!
+            </span>
+          ) : hasPlayed ? (
             <span className="text-zinc-500">Audio finished. Select your answer below.</span>
           ) : (
-            <span className="text-zinc-400">
-              Listen carefully and choose your answer.
-            </span>
+            <span className="text-zinc-400">Standby for audio playback.</span>
           )}
         </div>
 
         <div>
-          {hasPlayed ? (
+          {isAutoplayBlocked ? (
             <button
               type="button"
-              disabled
-              className="px-6 py-2.5 rounded-xl bg-zinc-900/80 text-zinc-500 border border-zinc-800 text-xs font-mono font-bold tracking-wider cursor-not-allowed flex items-center gap-2"
+              onClick={handleAutoplayUnlock}
+              className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs tracking-wide shadow-[0_0_20px_rgba(220,38,38,0.7)] animate-pulse cursor-pointer border border-red-500"
             >
-              <Lock className="w-3.5 h-3.5 text-zinc-500" />
-              <span>AUDIO PLAYED</span>
+              TAP TO UNMUTE AUDIO
             </button>
           ) : isPlaying ? (
-            <button
-              type="button"
-              disabled
-              className="px-6 py-2.5 rounded-xl bg-red-950 text-red-400 border border-red-700/80 text-xs font-mono font-bold tracking-wider cursor-not-allowed flex items-center gap-2 shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse"
-            >
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-950/60 border border-red-800/60 text-red-400 font-mono text-xs font-semibold shadow-[0_0_10px_rgba(220,38,38,0.3)]">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-              <span>PLAYING ({audioRemaining}s)...</span>
-            </button>
+              <span>CLIP PLAYING</span>
+            </div>
+          ) : isPreparing ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-950/50 border border-amber-800/50 text-amber-400 font-mono text-xs font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span>STARTING...</span>
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={handleStartPlay}
-              disabled={disabled || isProbeLoading}
-              className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs tracking-wider transition-all shadow-[0_0_20px_rgba(220,38,38,0.6)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border border-red-500 flex items-center gap-2"
-            >
-              <Play className="w-4 h-4 fill-current ml-0.5" />
-              <span>PLAY AUDIO</span>
-            </button>
+            <div className="px-3 py-1.5 rounded-xl bg-zinc-900/80 text-zinc-500 border border-zinc-800 text-xs font-mono">
+              <Lock className="w-3 h-3 inline mr-1" />
+              <span>LOCKED</span>
+            </div>
           )}
         </div>
       </div>

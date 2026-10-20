@@ -882,7 +882,7 @@ export default function GamePage({
             isPlaying={isAudioPlaying}
             onStartPlayback={handleStartPlayback}
             onAudioCompleted={handleAudioCompleted}
-            disabled={isLocked || isAnswering}
+            disabled={isLocked || isAnswering || isCheckingRoundState || gameSettings.game_status !== 'active'}
           />
         </div>
 
@@ -1058,7 +1058,7 @@ export default function GamePage({
                   </span>
                 ) : (
                   <span>
-                    Press <span className="text-red-400 font-bold">&ldquo;PLAY AUDIO&rdquo;</span> above. The 4 options will unlock immediately after the clip finishes.
+                    Audio will play automatically in a moment. The 4 options will unlock immediately after the clip finishes.
                   </span>
                 )}
               </p>

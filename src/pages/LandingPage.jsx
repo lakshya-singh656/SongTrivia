@@ -7,7 +7,7 @@ export default function LandingPage({ onEnterGame, onOpenLeaderboard, onOpenRule
 
   const rulesList = [
     { num: 1, text: "Register your survivor name before playing." },
-    { num: 2, text: "Each 3-second audio clip plays ONLY ONCE. No replays permitted." },
+    { num: 2, text: "Clips auto-play after a 2-second pause. 3-second clips play ONLY ONCE." },
     { num: 3, text: "Strict 10-second timer begins right after audio ends. Submit before 0s." },
     { num: 4, text: "Time-based points: 10s left = 10 pts, down to 1s left = 1 pt." },
     { num: 5, text: "Wrong answers or expired timers earn 0 points." },

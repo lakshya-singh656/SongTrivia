@@ -9,7 +9,7 @@ export default function RulesModal({ isOpen, onClose, gameSettings }) {
 
   const rules = [
     { num: 1, title: "Survivor Registration", desc: "Register using your real or survivor name before starting the challenge." },
-    { num: 2, title: "Single Playback Only", desc: "Listen carefully to each 3-second song clip. Clips play ONCE without replays." },
+    { num: 2, title: "Automatic Playback", desc: "Clips play automatically after a 2-second pause. Each 3-second song clip plays ONCE without replays." },
     { num: 3, title: "Strict 10-Second Timer", desc: "A 10-second answer countdown begins automatically after audio ends. Submissions after time expires award 0 points." },
     { num: 4, title: "Time-Based Points (10s to 1pt)", desc: "Skribbl-style scoring: answer in 10s for 10 points, 9s for 9 points, down to 1s for 1 point. Wrong answers award 0 points." },
     { num: 5, title: "Zero Penalty", desc: "Wrong answers earn 0 points. There is no negative marking." },

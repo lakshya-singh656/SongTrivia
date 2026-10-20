@@ -153,6 +153,10 @@ class HorrorSoundEngine {
 
     audio.play().catch(err => {
       console.warn('Audio play rejection:', err);
+      if (err.name === 'NotAllowedError') {
+        window.dispatchEvent(new CustomEvent('horror_autoplay_blocked', { detail: { audio } }));
+        return;
+      }
       terminate();
     });
 
