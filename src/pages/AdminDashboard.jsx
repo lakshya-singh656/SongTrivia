@@ -220,7 +220,10 @@ export default function AdminDashboard({ onAdminStateChange }) {
 
     try {
       setIsShuffling(true);
-      await horrorApi.shuffleSongs();
+      const shuffled = await horrorApi.shuffleSongs();
+      if (Array.isArray(shuffled) && shuffled.length > 0) {
+        setSongs(shuffled);
+      }
       await loadAdminData();
       showSuccessBanner("🔀 All 30 questions and multiple-choice options have been shuffled!");
     } catch (err) {

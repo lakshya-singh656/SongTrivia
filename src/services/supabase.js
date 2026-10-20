@@ -503,7 +503,6 @@ export const horrorApi = {
     const canonicalAnswer = optionMap[correctOpt] || optionA;
 
     const payload = {
-      id: songData.id || undefined,
       round_number: songData.round_number,
       title: songData.title || `Round ${songData.round_number}`,
       audio_path: songData.audio_path || '',
@@ -515,15 +514,17 @@ export const horrorApi = {
       correct_option: correctOpt,
       correct_answer: canonicalAnswer,
       accepted_answers: [canonicalAnswer],
-      hint: songData.hint || '',
-      synth_motif: songData.synth_motif
+      hint: songData.hint || ''
     };
+    if (songData.id && typeof songData.id === 'string' && songData.id.includes('-') && !songData.id.startsWith('song-')) {
+      payload.id = songData.id;
+    }
 
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
           .from('songs')
-          .upsert(payload)
+          .upsert(payload, { onConflict: 'round_number' })
           .select()
           .single();
         if (!error && data) {
@@ -668,19 +669,22 @@ export const horrorApi = {
           correct_option: s.correct_option,
           correct_answer: s.correct_answer,
           accepted_answers: s.accepted_answers,
-          hint: s.hint,
-          synth_motif: s.synth_motif
+          hint: s.hint || ''
         }));
 
-        const { error: upsertErr } = await supabase
+        const { data: upsertData, error: upsertErr } = await supabase
           .from('songs')
-          .upsert(rowsToUpsert, { onConflict: 'round_number' });
+          .upsert(rowsToUpsert, { onConflict: 'round_number' })
+          .select();
 
         if (upsertErr) {
           console.warn('Batch upsert on songs failed, saving sequentially:', upsertErr);
           for (const s of shuffledSongs) {
             await this.saveSong(s);
           }
+        } else if (Array.isArray(upsertData) && upsertData.length > 0) {
+          setLocalItem(STORAGE_KEYS.SONGS, upsertData);
+          cachedSongs = null;
         }
       } catch (err) {
         console.warn('Supabase shuffle save failed:', err);
