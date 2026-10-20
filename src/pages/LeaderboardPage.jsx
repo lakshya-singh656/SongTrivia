@@ -211,13 +211,12 @@ export default function LeaderboardPage({ currentParticipant }) {
                 <th className="py-4 px-4 text-center">Score (/300)</th>
                 <th className="py-4 px-4 text-center">Correct</th>
                 <th className="py-4 px-4 text-center hidden sm:table-cell">Rounds</th>
-                <th className="py-4 px-4 text-right hidden md:table-cell">Finished At</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-900 text-sm">
               {filteredLeaderboard.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-zinc-500 font-typewriter">
+                  <td colSpan={5} className="py-12 text-center text-zinc-500 font-typewriter">
                     {loading ? 'Consulting the dark archives...' : 'No survivors registered yet. Be the first to enter the arena!'}
                   </td>
                 </tr>
@@ -288,11 +287,6 @@ export default function LeaderboardPage({ currentParticipant }) {
                         <span className="font-mono text-xs text-zinc-400">
                           {survivor.completed_rounds || 0} / 30
                         </span>
-                      </td>
-
-                      {/* Completion Time */}
-                      <td className="py-4 px-4 text-right hidden md:table-cell font-mono text-xs text-zinc-500">
-                        {formatCompletionTime(survivor.completion_time)}
                       </td>
                     </tr>
                   );
