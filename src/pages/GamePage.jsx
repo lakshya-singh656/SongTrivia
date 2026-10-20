@@ -897,7 +897,7 @@ export default function GamePage({
               <div className="flex items-center gap-2">
                 <Timer className={`w-5 h-5 ${isTimerCritical ? 'text-red-400 animate-spin' : 'text-amber-400 animate-pulse'}`} />
                 <span className="text-xs font-mono font-bold tracking-wider uppercase text-zinc-200">
-                  {isTimerCritical ? 'LAST 3 SECONDS (8 PTS)' : 'ANSWER TIMER (10 PTS)'}
+                  {`ANSWER TIMER • ${Math.max(1, answerTimeRemaining)} PTS`}
                 </span>
               </div>
               <div className={`text-xl sm:text-2xl font-mono font-black tracking-widest ${
@@ -919,15 +919,9 @@ export default function GamePage({
               />
             </div>
             
-            {isTimerCritical ? (
-              <p className="text-[11px] font-mono text-red-300 text-center mt-2 animate-bounce">
-                ⚠️ FINAL 3 SECONDS: Answers now award 8 points instead of 10!
-              </p>
-            ) : (
-              <p className="text-[11px] font-mono text-amber-300/80 text-center mt-2">
-                ⚡ Speed Zone: Submit before 3s left for full 10 points!
-              </p>
-            )}
+            <p className="text-[11px] font-mono text-amber-300/90 text-center mt-2">
+              ⚡ Skribbl Speed Rule: Faster answer = More points ({answerTimeRemaining}s left = {Math.max(1, answerTimeRemaining)} pts if correct)
+            </p>
           </div>
         )}
 
@@ -1168,9 +1162,9 @@ export default function GamePage({
                   LOCKING IN SUBMISSION...
                 </span>
               ) : selectedOption ? (
-                <span>SUBMIT OPTION {selectedOption} ({answerTimeRemaining}s LEFT &bull; {answerTimeRemaining <= 3 ? '8 PTS' : '10 PTS'})</span>
+                <span>SUBMIT OPTION {selectedOption} ({answerTimeRemaining}s LEFT &bull; {Math.max(1, answerTimeRemaining)} PTS)</span>
               ) : (
-                <span>SELECT AN OPTION TO SUBMIT ({answerTimeRemaining}s LEFT &bull; {answerTimeRemaining <= 3 ? '8 PTS' : '10 PTS'})</span>
+                <span>SELECT AN OPTION TO SUBMIT ({answerTimeRemaining}s LEFT &bull; {Math.max(1, answerTimeRemaining)} PTS)</span>
               )}
             </button>
           </div>

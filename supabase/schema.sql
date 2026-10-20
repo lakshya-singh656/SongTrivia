@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS public.submissions (
   selected_option TEXT,
   submitted_answer TEXT NOT NULL,
   is_correct BOOLEAN NOT NULL DEFAULT FALSE,
-  points_awarded INT NOT NULL DEFAULT 0 CHECK (points_awarded IN (0, 10)),
+  points_awarded INT NOT NULL DEFAULT 0 CHECK (points_awarded >= 0 AND points_awarded <= 10),
   submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   CONSTRAINT unique_participant_song UNIQUE (participant_id, song_id),
   CONSTRAINT unique_participant_round UNIQUE (participant_id, round_number)
@@ -530,7 +530,12 @@ BEGIN
 
     IF v_clean_selected = v_clean_correct THEN
       v_is_correct := TRUE;
-      v_points := 10;
+      -- Skribbl-style speed scoring: 10s left = 10 pts, down to 1s left = 1 pt
+      IF v_session.answer_deadline IS NOT NULL THEN
+        v_points := GREATEST(1, LEAST(10, CEIL(EXTRACT(EPOCH FROM (v_session.answer_deadline - v_now)))));
+      ELSE
+        v_points := 10;
+      END IF;
     ELSE
       v_is_correct := FALSE;
       v_points := 0;

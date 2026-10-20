@@ -1160,8 +1160,10 @@ export const horrorApi = {
       throw new Error('Participant ID and Song ID are required.');
     }
 
-    // Determine if answered in the final 3 seconds (remainingSeconds <= 3)
-    const isLateSpeed = typeof remainingSeconds === 'number' && remainingSeconds <= 3;
+    // Determine time-based points (Skribbl style: 10s = 10 pts, down to 1s = 1 pt)
+    const calculatedPoints = typeof remainingSeconds === 'number'
+      ? Math.max(1, Math.min(10, Math.ceil(remainingSeconds)))
+      : 10;
 
     // Supabase RPC execution
     if (isSupabaseConfigured) {
@@ -1178,15 +1180,17 @@ export const horrorApi = {
             throw new Error(data.error || 'Submission failed');
           }
 
-          // Speed Rule: If answered with 3s or fewer left, award 8 pts instead of 10 pts
-          if (data.is_correct && isLateSpeed && (data.points_awarded === 10 || !data.points_awarded)) {
-            data.points_awarded = 8;
-            data.total_score = Math.max(0, (data.total_score || 10) - 2);
+          // Ensure time-based points alignment (10s = 10, 9s = 9, ..., 1s = 1)
+          if (data.is_correct && data.points_awarded !== calculatedPoints) {
+            const oldPoints = data.points_awarded || 10;
+            const diff = calculatedPoints - oldPoints;
+            data.points_awarded = calculatedPoints;
+            data.total_score = Math.max(0, (data.total_score || 0) + diff);
 
             try {
               await supabase
                 .from('submissions')
-                .update({ points_awarded: 8 })
+                .update({ points_awarded: calculatedPoints })
                 .eq('participant_id', participantId)
                 .eq('song_id', songId);
 
@@ -1195,7 +1199,7 @@ export const horrorApi = {
                 .update({ total_score: data.total_score })
                 .eq('id', participantId);
             } catch (syncErr) {
-              console.warn('Could not sync 8-point adjustment to Supabase:', syncErr);
+              console.warn('Could not sync time-based points adjustment to Supabase:', syncErr);
             }
           }
 
@@ -1319,8 +1323,8 @@ export const horrorApi = {
     // Compare with stored correct option
     const correctOption = (song.correct_option || 'A').toUpperCase();
     const isCorrect = cleanOption === correctOption;
-    // Speed Rule: > 3s remaining = 10 pts; <= 3s remaining = 8 pts
-    const pointsAwarded = isCorrect ? (actualRemaining <= 3 ? 8 : 10) : 0;
+    // Speed Rule: Skribbl style (10s remaining = 10 pts, 9s = 9 pts, ... down to 1s = 1 pt)
+    const pointsAwarded = isCorrect ? Math.max(1, Math.min(10, Math.ceil(actualRemaining))) : 0;
 
     const optionMap = {
       A: song.option_a,

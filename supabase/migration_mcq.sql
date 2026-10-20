@@ -11,9 +11,12 @@ ALTER TABLE public.songs
   ADD COLUMN IF NOT EXISTS option_d TEXT NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS correct_option TEXT NOT NULL DEFAULT 'A' CHECK (correct_option IN ('A', 'B', 'C', 'D'));
 
--- 2. ADD SELECTED_OPTION TO SUBMISSIONS TABLE
+-- 2. ADD SELECTED_OPTION TO SUBMISSIONS TABLE & UPDATE POINTS CONSTRAINT
 ALTER TABLE public.submissions
   ADD COLUMN IF NOT EXISTS selected_option TEXT;
+
+ALTER TABLE public.submissions DROP CONSTRAINT IF EXISTS submissions_points_awarded_check;
+ALTER TABLE public.submissions ADD CONSTRAINT submissions_points_awarded_check CHECK (points_awarded >= 0 AND points_awarded <= 10);
 
 -- 3. UPDATE GET_PLAYABLE_SONGS FUNCTION (WITHHOLDS CORRECT_OPTION UNTIL REVEAL)
 CREATE OR REPLACE FUNCTION public.get_playable_songs()
@@ -157,9 +160,9 @@ BEGIN
 
     IF v_clean_selected = v_clean_correct THEN
       v_is_correct := TRUE;
-      -- Speed scoring: 8 points if submitted with 3s or less left on the timer, 10 points otherwise
-      IF v_session.answer_deadline IS NOT NULL AND (v_session.answer_deadline - v_now) <= INTERVAL '3 seconds' THEN
-        v_points := 8;
+      -- Skribbl-style speed scoring: 10s left = 10 pts, down to 1s left = 1 pt
+      IF v_session.answer_deadline IS NOT NULL THEN
+        v_points := GREATEST(1, LEAST(10, CEIL(EXTRACT(EPOCH FROM (v_session.answer_deadline - v_now)))));
       ELSE
         v_points := 10;
       END IF;

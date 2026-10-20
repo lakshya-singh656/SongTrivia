@@ -52,12 +52,14 @@ export function checkAnswerMatch(submitted, correct, acceptedVariations = []) {
 
 /**
  * Computes points for a submission.
- * Rule:
- * Correct answer with > 3s remaining = 10 points
- * Correct answer with <= 3s remaining = 8 points
+ * Skribbl-style Rule:
+ * 10s remaining = 10 points
+ * 9s remaining = 9 points
+ * ...
+ * 1s remaining = 1 point
  * Wrong answer = 0 points.
  */
 export function computePoints(isCorrect, secondsRemaining = 10) {
   if (!isCorrect) return 0;
-  return secondsRemaining <= 3 ? 8 : 10;
+  return Math.max(1, Math.min(10, Math.ceil(secondsRemaining)));
 }

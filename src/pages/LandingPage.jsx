@@ -7,9 +7,9 @@ export default function LandingPage({ onEnterGame, onOpenLeaderboard, onOpenRule
 
   const rulesList = [
     { num: 1, text: "Register your survivor name before playing." },
-    { num: 2, text: "Each 5–10s audio clip plays ONLY ONCE. No replays permitted." },
+    { num: 2, text: "Each 3-second audio clip plays ONLY ONCE. No replays permitted." },
     { num: 3, text: "Strict 10-second timer begins right after audio ends. Submit before 0s." },
-    { num: 4, text: "Every correct answer earns 10 points." },
+    { num: 4, text: "Time-based points: 10s left = 10 pts, down to 1s left = 1 pt." },
     { num: 5, text: "Wrong answers or expired timers earn 0 points." },
     { num: 6, text: `There are ${totalRounds} chilling horror song rounds.` },
     { num: 7, text: `Maximum possible score: ${maxScore} points.` },
