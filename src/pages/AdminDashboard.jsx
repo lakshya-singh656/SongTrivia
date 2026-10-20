@@ -54,12 +54,53 @@ export default function AdminDashboard({ onAdminStateChange }) {
     initAdmin();
   }, []);
 
+  // Real-time synchronization for Organizer Portal
+  useEffect(() => {
+    if (!session) return;
+
+    // 1. Subscribe to live participant registrations
+    const unsubParticipants = horrorApi.subscribeToParticipants(() => {
+      loadAdminData();
+    });
+
+    const unsubLeaderboard = horrorApi.subscribeToLeaderboard(() => {
+      loadAdminData();
+    });
+
+    const unsubSettings = horrorApi.subscribeToGameSettings((newSettings) => {
+      if (newSettings) setGameSettings(newSettings);
+    });
+
+    const handleParticipantChanged = () => {
+      loadAdminData();
+    };
+
+    window.addEventListener('horror_participant_changed', handleParticipantChanged);
+    window.addEventListener('horror_submission_made', handleParticipantChanged);
+    window.addEventListener('horror_game_reset', handleParticipantChanged);
+
+    // 2. Poll every 4 seconds while admin is logged in so lobby count is always fresh
+    const pollInterval = setInterval(() => {
+      loadAdminData();
+    }, 4000);
+
+    return () => {
+      if (unsubParticipants) unsubParticipants();
+      if (unsubLeaderboard) unsubLeaderboard();
+      if (unsubSettings) unsubSettings();
+      window.removeEventListener('horror_participant_changed', handleParticipantChanged);
+      window.removeEventListener('horror_submission_made', handleParticipantChanged);
+      window.removeEventListener('horror_game_reset', handleParticipantChanged);
+      clearInterval(pollInterval);
+    };
+  }, [session]);
+
   const loadAdminData = async () => {
     try {
       const [songsData, settingsData, partsData, subsData, health] = await Promise.all([
         horrorApi.getAllAdminSongs(),
-        horrorApi.getGameSettings(),
-        horrorApi.getLeaderboard(),
+        horrorApi.getGameSettings(true),
+        horrorApi.getAllParticipants(true),
         horrorApi.getAllSubmissions(),
         horrorApi.checkSupabaseHealth()
       ]);
@@ -888,45 +929,114 @@ export default function AdminDashboard({ onAdminStateChange }) {
 
       {/* TAB 2: LIVE PARTICIPANTS */}
       {activeTab === 'live' && (
-        <div className="bg-[#0e0e15]/95 border border-zinc-900 rounded-3xl overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead>
-                <tr className="bg-zinc-950 text-zinc-400 text-[11px] font-mono uppercase border-b border-zinc-800">
-                  <th className="py-3 px-4">Rank</th>
-                  <th className="py-3 px-4">Survivor</th>
-                  <th className="py-3 px-4 text-center">Score</th>
-                  <th className="py-3 px-4 text-center">Correct</th>
-                  <th className="py-3 px-4 text-center">Completed</th>
-                  <th className="py-3 px-4 text-right">Completion Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-900">
-                {participants.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-zinc-500">
-                      No participants registered yet.
-                    </td>
+        <div className="space-y-4">
+          {/* Waiting Room Organizer Banner */}
+          {gameSettings.game_status === 'waiting' && (
+            <div className="p-4 sm:p-5 rounded-3xl bg-red-950/40 border border-red-800/70 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-900 to-black border border-red-600/60 flex items-center justify-center text-2xl shadow-lg shrink-0">
+                  ⏳
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-cinzel font-black text-white uppercase tracking-wider">
+                      Lobby Waiting Room Open
+                    </h3>
+                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950 text-emerald-400 border border-emerald-700 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                      LIVE SYNC
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-300 mt-0.5">
+                    <strong className="text-red-400 font-mono text-sm">{participants.length}</strong> survivor{participants.length === 1 ? '' : 's'} are currently registered and waiting for you to start the quiz.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                <button
+                  onClick={() => loadAdminData()}
+                  className="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Refresh</span>
+                </button>
+                <button
+                  onClick={() => handleStatusChange('active')}
+                  className="flex-1 sm:flex-initial px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-900/50 transition-all hover:scale-105"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Start Game Now</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-[#0e0e15]/95 border border-zinc-900 rounded-3xl overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-zinc-300">
+                  Registered Survivors ({participants.length})
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-zinc-500">Auto-syncing every 4s</span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead>
+                  <tr className="bg-zinc-950 text-zinc-400 text-[11px] font-mono uppercase border-b border-zinc-800">
+                    <th className="py-3 px-4">#</th>
+                    <th className="py-3 px-4">Survivor</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Score</th>
+                    <th className="py-3 px-4 text-center">Correct</th>
+                    <th className="py-3 px-4 text-right">Completion Time</th>
                   </tr>
-                ) : (
-                  participants.map((p, idx) => (
-                    <tr key={p.id} className="hover:bg-zinc-900/40">
-                      <td className="py-3.5 px-4 font-mono font-bold text-red-400">#{idx + 1}</td>
-                      <td className="py-3.5 px-4">
-                        <span className="font-semibold text-zinc-200 block">{p.name}</span>
-                        <span className="text-[11px] font-mono text-zinc-500">{p.participant_code}</span>
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-mono font-bold text-white">{p.total_score}</td>
-                      <td className="py-3.5 px-4 text-center font-mono text-emerald-400">{p.correct_count} / 30</td>
-                      <td className="py-3.5 px-4 text-center font-mono text-zinc-400">{p.completed_rounds || 0} / 30</td>
-                      <td className="py-3.5 px-4 text-right font-mono text-xs text-zinc-500">
-                        {p.completion_time ? new Date(p.completion_time).toLocaleTimeString() : '--:--'}
+                </thead>
+                <tbody className="divide-y divide-zinc-900">
+                  {participants.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-zinc-500">
+                        <div className="w-12 h-12 mx-auto mb-2 rounded-2xl bg-zinc-900/80 flex items-center justify-center text-xl">
+                          👻
+                        </div>
+                        <p className="text-sm text-zinc-400">No participants registered yet.</p>
+                        <p className="text-xs text-zinc-600 mt-1">Direct players to register on your hosted website.</p>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    participants.map((p, idx) => (
+                      <tr key={p.id} className="hover:bg-zinc-900/40 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-bold text-red-400">#{idx + 1}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-semibold text-zinc-200 block">{p.name}</span>
+                          <span className="text-[11px] font-mono text-zinc-500">{p.participant_code}</span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          {gameSettings.game_status === 'waiting' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-950/80 text-emerald-400 border border-emerald-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              READY IN LOBBY
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-zinc-900 text-zinc-300 border border-zinc-800">
+                              Round {p.completed_rounds || 0} / 30
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-mono font-bold text-white">{p.total_score}</td>
+                        <td className="py-3.5 px-4 text-center font-mono text-emerald-400">{p.correct_count} / 30</td>
+                        <td className="py-3.5 px-4 text-right font-mono text-xs text-zinc-500">
+                          {p.completion_time ? new Date(p.completion_time).toLocaleTimeString() : '--:--'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

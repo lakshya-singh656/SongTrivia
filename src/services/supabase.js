@@ -113,16 +113,19 @@ initializeLocalStorageIfNeeded();
 let cachedSettings = null; // { data, timestamp }
 let cachedSongs = null; // { data, timestamp, answersRevealed }
 let cachedLeaderboard = null; // { data, timestamp }
+let cachedParticipants = null; // { data, timestamp }
 
 const CACHE_TTL = {
-  SETTINGS: 3000,    // 3 seconds in-memory TTL
-  SONGS: 15000,      // 15 seconds in-memory TTL
-  LEADERBOARD: 4000  // 4 seconds in-memory TTL
+  SETTINGS: 3000,      // 3 seconds in-memory TTL
+  SONGS: 15000,        // 15 seconds in-memory TTL
+  LEADERBOARD: 4000,   // 4 seconds in-memory TTL
+  PARTICIPANTS: 3000   // 3 seconds in-memory TTL
 };
 
 let realtimeChannel = null;
 const settingsListeners = new Set();
 const leaderboardListeners = new Set();
+const participantListeners = new Set();
 
 function initRealtimeSync() {
   if (!isSupabaseConfigured || !supabase || realtimeChannel) return;
@@ -147,18 +150,36 @@ function initRealtimeSync() {
         event: '*',
         schema: 'public',
         table: 'participants'
-      }, () => {
+      }, (payload) => {
         cachedLeaderboard = null;
+        cachedParticipants = null;
         leaderboardListeners.forEach(cb => {
           try { cb(); } catch (e) {}
         });
+        participantListeners.forEach(cb => {
+          try { cb(payload); } catch (e) {}
+        });
         window.dispatchEvent(new CustomEvent('horror_submission_made'));
+        window.dispatchEvent(new CustomEvent('horror_participant_changed', { detail: payload }));
+      })
+      .on('broadcast', { event: 'participant_joined' }, (payload) => {
+        cachedLeaderboard = null;
+        cachedParticipants = null;
+        participantListeners.forEach(cb => {
+          try { cb(payload?.payload); } catch (e) {}
+        });
+        window.dispatchEvent(new CustomEvent('horror_participant_changed', { detail: payload?.payload }));
       })
       .on('broadcast', { event: 'game_reset' }, () => {
         cachedSettings = null;
         cachedLeaderboard = null;
         cachedSongs = null;
+        cachedParticipants = null;
+        participantListeners.forEach(cb => {
+          try { cb({ type: 'reset' }); } catch (e) {}
+        });
         window.dispatchEvent(new CustomEvent('horror_game_reset'));
+        window.dispatchEvent(new CustomEvent('horror_participant_changed'));
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
@@ -198,6 +219,16 @@ export const horrorApi = {
     }
     return () => {
       leaderboardListeners.delete(callback);
+    };
+  },
+
+  subscribeToParticipants(callback) {
+    if (typeof callback === 'function') {
+      participantListeners.add(callback);
+      initRealtimeSync();
+    }
+    return () => {
+      participantListeners.delete(callback);
     };
   },
 
@@ -551,6 +582,8 @@ export const horrorApi = {
     const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     const participantCode = `SURVIVOR-${randomSuffix}`;
 
+    let registered = null;
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -565,27 +598,74 @@ export const horrorApi = {
           .select()
           .single();
         if (error) throw error;
-        return data;
+        registered = data;
       } catch (err) {
         console.warn('Supabase registerParticipant failed, falling back to local:', err);
       }
     }
 
-    const participants = getLocalItem(STORAGE_KEYS.PARTICIPANTS, []);
-    const newParticipant = {
-      id: `part-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      participant_code: participantCode,
-      name: cleanName,
-      total_score: 0,
-      correct_count: 0,
-      completed_rounds: 0,
-      completion_time: null,
-      created_at: new Date().toISOString()
-    };
+    if (!registered) {
+      const participants = getLocalItem(STORAGE_KEYS.PARTICIPANTS, []);
+      registered = {
+        id: `part-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        participant_code: participantCode,
+        name: cleanName,
+        total_score: 0,
+        correct_count: 0,
+        completed_rounds: 0,
+        completion_time: null,
+        created_at: new Date().toISOString()
+      };
+      participants.push(registered);
+      setLocalItem(STORAGE_KEYS.PARTICIPANTS, participants);
+    }
 
-    participants.push(newParticipant);
-    setLocalItem(STORAGE_KEYS.PARTICIPANTS, participants);
-    return newParticipant;
+    // Invalidate participants and leaderboard cache
+    cachedParticipants = null;
+    cachedLeaderboard = null;
+
+    // Send instant Realtime broadcast to waiting room and organizer dashboard
+    if (realtimeChannel) {
+      try {
+        realtimeChannel.send({
+          type: 'broadcast',
+          event: 'participant_joined',
+          payload: { participant: registered }
+        });
+      } catch (e) {}
+    }
+    window.dispatchEvent(new CustomEvent('horror_participant_changed', { detail: registered }));
+
+    return registered;
+  },
+
+  async getAllParticipants(forceRefresh = false) {
+    if (!forceRefresh && cachedParticipants && Date.now() - cachedParticipants.timestamp < CACHE_TTL.PARTICIPANTS) {
+      return cachedParticipants.data;
+    }
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('participants')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!error && Array.isArray(data)) {
+          cachedParticipants = { data, timestamp: Date.now() };
+          return data;
+        }
+        if (error) {
+          console.warn('Supabase getAllParticipants failed, falling back:', error);
+        }
+      } catch (err) {
+        console.warn('Supabase getAllParticipants error:', err);
+      }
+    }
+
+    const participants = getLocalItem(STORAGE_KEYS.PARTICIPANTS, []);
+    const reversed = [...participants].reverse();
+    cachedParticipants = { data: reversed, timestamp: Date.now() };
+    return reversed;
   },
 
   async getParticipant(participantId) {

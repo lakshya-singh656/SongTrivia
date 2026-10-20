@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Skull, Trophy, CheckCircle2, XCircle, ArrowRight, Lock, 
-  Sparkles, AlertCircle, Clock, Volume2, ShieldAlert, Timer
+  Sparkles, AlertCircle, Clock, Volume2, ShieldAlert, Timer,
+  Users, User, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import AudioPlayer from '../components/AudioPlayer';
@@ -25,6 +26,8 @@ export default function GamePage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionFeedback, setSubmissionFeedback] = useState(null);
   const [gameSettings, setGameSettings] = useState({ game_status: 'waiting', answers_revealed: false });
+  const [waitingParticipants, setWaitingParticipants] = useState([]);
+  const [isRefreshingWaiting, setIsRefreshingWaiting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [checkingRoundState, setCheckingRoundState] = useState(false);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
@@ -37,6 +40,48 @@ export default function GamePage({
 
   const timerIntervalRef = useRef(null);
   const autoAdvanceTimeoutRef = useRef(null);
+
+  // Live Waiting Room synchronization
+  const fetchWaitingList = async (showSpinner = false) => {
+    try {
+      if (showSpinner) setIsRefreshingWaiting(true);
+      const list = await horrorApi.getAllParticipants(true);
+      if (Array.isArray(list)) {
+        setWaitingParticipants(list);
+      }
+    } catch (e) {
+      console.warn('Failed to load waiting participants:', e);
+    } finally {
+      if (showSpinner) setIsRefreshingWaiting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (gameSettings.game_status !== 'waiting') return;
+
+    fetchWaitingList();
+
+    // Subscribe to live participant changes
+    const unsubParticipants = horrorApi.subscribeToParticipants(() => {
+      fetchWaitingList();
+    });
+
+    const handleParticipantEvent = () => {
+      fetchWaitingList();
+    };
+    window.addEventListener('horror_participant_changed', handleParticipantEvent);
+
+    // Auto-poll every 3.5s while in lobby to catch any new survivors
+    const waitingPoll = setInterval(() => {
+      fetchWaitingList();
+    }, 3500);
+
+    return () => {
+      if (unsubParticipants) unsubParticipants();
+      window.removeEventListener('horror_participant_changed', handleParticipantEvent);
+      clearInterval(waitingPoll);
+    };
+  }, [gameSettings.game_status]);
 
   // 1. Initial Load of Songs, Submissions & Settings
   useEffect(() => {
@@ -493,42 +538,125 @@ export default function GamePage({
   // 9. EVENT STATUS: WAITING LOBBY
   if (gameSettings.game_status === 'waiting') {
     return (
-      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
-        <div className="w-full max-w-xl bg-[#0e0e15]/95 border border-red-900/60 rounded-3xl p-8 text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] backdrop-blur-xl">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-red-950/80 border border-red-700/60 flex items-center justify-center text-4xl shadow-[0_0_25px_rgba(220,38,38,0.5)]">
+      <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 py-8">
+        <div className="w-full max-w-xl bg-[#0e0e15]/95 border border-red-900/60 rounded-3xl p-6 sm:p-8 text-center shadow-[0_0_50px_rgba(220,38,38,0.25)] backdrop-blur-xl relative overflow-hidden">
+          {/* Ambient red flare */}
+          <div className="absolute -top-12 -right-12 w-32 h-32 bg-red-600/15 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 rounded-2xl bg-red-950/80 border border-red-700/60 flex items-center justify-center text-3xl sm:text-4xl shadow-[0_0_25px_rgba(220,38,38,0.5)]">
             ⏳
           </div>
-          <div className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800 mb-3">
-            LOBBY WAITING ROOM
+
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800 mb-3">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>LOBBY WAITING ROOM</span>
           </div>
-          <h2 className="text-3xl font-cinzel font-black text-white uppercase tracking-wider mb-3">
+
+          <h2 className="text-2xl sm:text-3xl font-cinzel font-black text-white uppercase tracking-wider mb-2">
             The Gates Are Locked
           </h2>
-          <p className="text-sm text-zinc-300 max-w-md mx-auto leading-relaxed mb-6">
+          <p className="text-xs sm:text-sm text-zinc-300 max-w-md mx-auto leading-relaxed mb-5">
             Welcome, <span className="text-red-400 font-bold">{participant.name}</span>. The organizer will start the event shortly. All rounds feature strict single-audio playback and a 10-second answer timer!
           </p>
 
-          <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-900 flex items-center justify-around text-center mb-6">
+          {/* Player Quick Info Cards */}
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-950/90 border border-zinc-900 flex items-center justify-around text-center mb-6">
             <div>
-              <p className="text-xs text-zinc-500 uppercase">Participant ID</p>
-              <p className="text-sm font-mono font-bold text-zinc-200">{participant.participant_code}</p>
+              <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Participant ID</p>
+              <p className="text-xs sm:text-sm font-mono font-bold text-zinc-200">{participant.participant_code}</p>
             </div>
             <div className="w-px h-8 bg-zinc-800" />
             <div>
-              <p className="text-xs text-zinc-500 uppercase">Anti-Cheating</p>
-              <p className="text-sm font-mono font-bold text-red-400">1 Play &bull; 10s Timer</p>
+              <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Anti-Cheating</p>
+              <p className="text-xs sm:text-sm font-mono font-bold text-red-400">1 Play &bull; 10s Timer</p>
             </div>
             <div className="w-px h-8 bg-zinc-800" />
             <div>
-              <p className="text-xs text-zinc-500 uppercase">Max Points</p>
-              <p className="text-sm font-mono font-bold text-amber-400">300 PTS</p>
+              <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Max Points</p>
+              <p className="text-xs sm:text-sm font-mono font-bold text-amber-400">300 PTS</p>
             </div>
+          </div>
+
+          {/* LIVE PARTICIPANTS IN WAITING ROOM */}
+          <div className="mb-6 p-4 rounded-2xl bg-zinc-950/80 border border-red-950/90 text-left">
+            <div className="flex items-center justify-between mb-3 border-b border-zinc-900 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-red-500" />
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                  Survivors in Lobby ({waitingParticipants.length})
+                </h4>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 animate-pulse">
+                  LIVE
+                </span>
+              </div>
+              <button
+                onClick={() => fetchWaitingList(true)}
+                disabled={isRefreshingWaiting}
+                className="text-[11px] font-mono text-zinc-400 hover:text-red-400 flex items-center gap-1 cursor-pointer transition-colors"
+                title="Refresh lobby list"
+              >
+                <RefreshCw className={`w-3 h-3 ${isRefreshingWaiting ? 'animate-spin text-red-500' : ''}`} />
+                <span>Sync</span>
+              </button>
+            </div>
+
+            {waitingParticipants.length === 0 ? (
+              <div className="py-6 text-center text-zinc-500">
+                <p className="text-xs">Gathering survivors in the lobby...</p>
+              </div>
+            ) : (
+              <div className="max-h-52 overflow-y-auto pr-1 space-y-2">
+                {waitingParticipants.map((p) => {
+                  const isSelf = p.id === participant.id || p.participant_code === participant.participant_code;
+                  return (
+                    <div
+                      key={p.id || p.participant_code}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border text-xs transition-all ${
+                        isSelf
+                          ? 'bg-red-950/50 border-red-700/80 text-white shadow-[0_0_12px_rgba(220,38,38,0.25)]'
+                          : 'bg-[#12121c]/80 border-zinc-900 text-zinc-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-red-950/80 border border-red-800/60 flex items-center justify-center text-xs shrink-0">
+                          🩸
+                        </div>
+                        <div className="truncate">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="font-semibold truncate">{p.name}</span>
+                            {isSelf && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold font-mono bg-red-600 text-white uppercase">
+                                YOU
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-mono text-zinc-500 truncate">
+                            {p.participant_code}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 tracking-wider">
+                          READY
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <p className="text-[10px] text-zinc-500 text-center mt-3 font-typewriter">
+              When the organizer clicks Start Game, your arena will begin automatically.
+            </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button
               onClick={onGoToLeaderboard}
-              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 text-sm font-semibold cursor-pointer"
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 text-xs sm:text-sm font-semibold cursor-pointer transition-colors"
             >
               View Leaderboard
             </button>
