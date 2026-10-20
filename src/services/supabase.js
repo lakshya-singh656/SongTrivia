@@ -375,8 +375,41 @@ export const horrorApi = {
           .upsert(payload)
           .select()
           .single();
+        if (!error && data) {
+          const songs = getLocalItem(STORAGE_KEYS.SONGS, []);
+          const index = songs.findIndex(s => s.round_number === songData.round_number);
+          if (index >= 0) songs[index] = { ...songs[index], ...data };
+          else songs.push(data);
+          setLocalItem(STORAGE_KEYS.SONGS, songs);
+          return data;
+        }
+
+        // Fallback to admin RPC function if direct upsert blocked by RLS
+        const { data: rpcData, error: rpcError } = await supabase.rpc('admin_save_song', {
+          p_round_number: payload.round_number,
+          p_title: payload.title,
+          p_audio_path: payload.audio_path,
+          p_duration_seconds: payload.duration_seconds,
+          p_option_a: payload.option_a,
+          p_option_b: payload.option_b,
+          p_option_c: payload.option_c,
+          p_option_d: payload.option_d,
+          p_correct_option: payload.correct_option,
+          p_correct_answer: payload.correct_answer,
+          p_hint: payload.hint,
+          p_synth_motif: payload.synth_motif
+        });
+
+        if (!rpcError && rpcData) {
+          const songs = getLocalItem(STORAGE_KEYS.SONGS, []);
+          const index = songs.findIndex(s => s.round_number === songData.round_number);
+          if (index >= 0) songs[index] = { ...songs[index], ...rpcData };
+          else songs.push(rpcData);
+          setLocalItem(STORAGE_KEYS.SONGS, songs);
+          return rpcData;
+        }
+
         if (error) throw error;
-        return data;
       } catch (e) {
         console.warn('Supabase saveSong failed, updating local storage:', e);
       }
@@ -1031,25 +1064,33 @@ export const horrorApi = {
 
     if (isSupabaseConfigured) {
       try {
-        const { error: uploadError } = await supabase.storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('song-clips')
           .upload(fileName, file, {
             cacheControl: '3600',
-            upsert: true
+            upsert: true,
+            contentType: file.type || 'audio/mpeg'
           });
-        if (uploadError) throw uploadError;
+
+        if (uploadError) {
+          console.error('Supabase storage upload error:', uploadError);
+          throw new Error(`Storage upload failed: ${uploadError.message}. Make sure 'song-clips' bucket has public upload policy.`);
+        }
 
         const { data: publicUrlData } = supabase.storage
           .from('song-clips')
           .getPublicUrl(fileName);
 
-        return publicUrlData.publicUrl;
+        if (publicUrlData?.publicUrl) {
+          return publicUrlData.publicUrl;
+        }
       } catch (err) {
-        console.warn('Supabase audio upload failed, falling back to local Blob URL:', err);
+        console.error('Audio upload error:', err);
+        throw err;
       }
     }
 
-    // In local engine, create Object URL for playback
+    // In local engine only (when Supabase is not configured)
     return URL.createObjectURL(file);
   },
 

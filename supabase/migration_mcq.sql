@@ -255,3 +255,94 @@ BEGIN
 END;
 $$;
 
+-- 6. STORAGE BUCKET POLICIES FOR SONG-CLIPS (ENABLE UPLOAD FOR ORGANIZER)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'song-clips',
+  'song-clips',
+  true,
+  10485760,
+  ARRAY['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-m4a', 'audio/mp4', 'audio/aac', 'audio/ogg']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = true,
+  file_size_limit = 10485760;
+
+DROP POLICY IF EXISTS "Public Read Song Clips" ON storage.objects;
+CREATE POLICY "Public Read Song Clips"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'song-clips');
+
+DROP POLICY IF EXISTS "Public Upload Song Clips" ON storage.objects;
+CREATE POLICY "Public Upload Song Clips"
+ON storage.objects FOR INSERT
+TO public
+WITH CHECK (bucket_id = 'song-clips');
+
+DROP POLICY IF EXISTS "Public Update Song Clips" ON storage.objects;
+CREATE POLICY "Public Update Song Clips"
+ON storage.objects FOR UPDATE
+TO public
+USING (bucket_id = 'song-clips')
+WITH CHECK (bucket_id = 'song-clips');
+
+-- 7. ALLOW ORGANIZER TO UPDATE SONGS TABLE
+DROP POLICY IF EXISTS "Public can modify songs" ON public.songs;
+CREATE POLICY "Public can modify songs"
+ON public.songs FOR ALL
+TO public
+USING (true)
+WITH CHECK (true);
+
+-- 8. RPC FUNCTION TO SAVE SONG SECURELY
+CREATE OR REPLACE FUNCTION public.admin_save_song(
+  p_round_number INT,
+  p_title TEXT,
+  p_audio_path TEXT,
+  p_duration_seconds NUMERIC,
+  p_option_a TEXT,
+  p_option_b TEXT,
+  p_option_c TEXT,
+  p_option_d TEXT,
+  p_correct_option TEXT,
+  p_correct_answer TEXT,
+  p_hint TEXT DEFAULT '',
+  p_synth_motif TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_res RECORD;
+BEGIN
+  INSERT INTO public.songs (
+    round_number, title, audio_path, duration_seconds,
+    option_a, option_b, option_c, option_d,
+    correct_option, correct_answer, accepted_answers, hint, synth_motif
+  ) VALUES (
+    p_round_number, p_title, p_audio_path, COALESCE(p_duration_seconds, 8.0),
+    p_option_a, p_option_b, p_option_c, p_option_d,
+    p_correct_option, p_correct_answer, ARRAY[p_correct_answer], p_hint, p_synth_motif
+  )
+  ON CONFLICT (round_number) DO UPDATE SET
+    title = EXCLUDED.title,
+    audio_path = COALESCE(EXCLUDED.audio_path, songs.audio_path),
+    duration_seconds = COALESCE(EXCLUDED.duration_seconds, songs.duration_seconds),
+    option_a = EXCLUDED.option_a,
+    option_b = EXCLUDED.option_b,
+    option_c = EXCLUDED.option_c,
+    option_d = EXCLUDED.option_d,
+    correct_option = EXCLUDED.correct_option,
+    correct_answer = EXCLUDED.correct_answer,
+    accepted_answers = ARRAY[EXCLUDED.correct_answer],
+    hint = EXCLUDED.hint,
+    synth_motif = EXCLUDED.synth_motif
+  RETURNING * INTO v_res;
+
+  RETURN to_jsonb(v_res);
+END;
+$$;
+
+

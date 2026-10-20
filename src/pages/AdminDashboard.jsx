@@ -266,7 +266,9 @@ export default function AdminDashboard({ onAdminStateChange }) {
       await loadAdminData();
       showSuccessBanner(`Audio clip for Round ${roundNumber} uploaded successfully!`);
     } catch (err) {
+      console.error('Audio upload failed:', err);
       setUploadError(err.message || 'Audio upload failed.');
+      alert('Audio upload failed: ' + err.message);
     } finally {
       setUploadingRound(null);
     }
