@@ -886,7 +886,29 @@ export default function GamePage({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+            {/* Quick Question Count Switcher */}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-zinc-950 border border-zinc-800">
+              {[10, 20, 30].map(cnt => {
+                const isSel = totalRounds === cnt;
+                return (
+                  <button
+                    key={cnt}
+                    type="button"
+                    onClick={() => handleUpdateLobbyQuestionCount(cnt)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      isSel
+                        ? 'bg-red-600 text-white shadow-[0_0_10px_rgba(220,38,38,0.7)] border border-red-500'
+                        : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                    }`}
+                    title={`Switch challenge length to ${cnt} questions`}
+                  >
+                    {cnt}Q
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="px-3.5 py-1.5 rounded-xl bg-zinc-950 border border-zinc-800 text-right">
               <span className="text-[10px] text-zinc-500 uppercase block">Correct</span>
               <span className="text-sm font-mono font-bold text-emerald-400">

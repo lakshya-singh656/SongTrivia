@@ -22,6 +22,7 @@ export const supabase = isSupabaseConfigured
 
 const STORAGE_KEYS = {
   SETTINGS: 'horror_trivia_settings_v1',
+  TOTAL_ROUNDS: 'horror_trivia_total_rounds_v1',
   SONGS: 'horror_trivia_songs_v1',
   PARTICIPANTS: 'horror_trivia_participants_v1',
   ROUND_SESSIONS: 'horror_trivia_round_sessions_v1',
@@ -138,12 +139,32 @@ function initRealtimeSync() {
         table: 'game_settings'
       }, (payload) => {
         if (payload.new) {
-          cachedSettings = { data: payload.new, timestamp: Date.now() };
-          setLocalItem(STORAGE_KEYS.SETTINGS, payload.new);
+          const savedRounds = getLocalItem(STORAGE_KEYS.TOTAL_ROUNDS, null);
+          const effectiveData = {
+            ...payload.new,
+            total_rounds: savedRounds !== null ? Number(savedRounds) : (Number(payload.new.total_rounds) || 30)
+          };
+          cachedSettings = { data: effectiveData, timestamp: Date.now() };
+          setLocalItem(STORAGE_KEYS.SETTINGS, effectiveData);
           settingsListeners.forEach(cb => {
-            try { cb(payload.new); } catch (e) {}
+            try { cb(effectiveData); } catch (e) {}
           });
-          window.dispatchEvent(new CustomEvent('horror_settings_updated', { detail: payload.new }));
+          window.dispatchEvent(new CustomEvent('horror_settings_updated', { detail: effectiveData }));
+        }
+      })
+      .on('broadcast', { event: 'settings_updated' }, (payload) => {
+        if (payload?.payload) {
+          const newSettings = payload.payload;
+          if (newSettings.total_rounds !== undefined) {
+            setLocalItem(STORAGE_KEYS.TOTAL_ROUNDS, Number(newSettings.total_rounds));
+          }
+          cachedSettings = { data: newSettings, timestamp: Date.now() };
+          cachedSongs = null;
+          setLocalItem(STORAGE_KEYS.SETTINGS, newSettings);
+          settingsListeners.forEach(cb => {
+            try { cb(newSettings); } catch (e) {}
+          });
+          window.dispatchEvent(new CustomEvent('horror_settings_updated', { detail: newSettings }));
         }
       })
       .on('postgres_changes', {
@@ -303,7 +324,12 @@ export const horrorApi = {
 
   // 1. GAME SETTINGS (Cached with 3s TTL to protect against 100-user query storms)
   async getGameSettings(forceRefresh = false) {
+    const savedTotalRounds = getLocalItem(STORAGE_KEYS.TOTAL_ROUNDS, null);
+
     if (!forceRefresh && cachedSettings && Date.now() - cachedSettings.timestamp < CACHE_TTL.SETTINGS) {
+      if (savedTotalRounds !== null && cachedSettings.data.total_rounds !== Number(savedTotalRounds)) {
+        cachedSettings.data.total_rounds = Number(savedTotalRounds);
+      }
       return cachedSettings.data;
     }
 
@@ -316,10 +342,15 @@ export const horrorApi = {
           .single();
         if (error) throw error;
         if (data) {
-          cachedSettings = { data, timestamp: Date.now() };
-          setLocalItem(STORAGE_KEYS.SETTINGS, data);
+          const effectiveRounds = savedTotalRounds !== null ? Number(savedTotalRounds) : (Number(data.total_rounds) || 30);
+          const merged = {
+            ...data,
+            total_rounds: effectiveRounds
+          };
+          cachedSettings = { data: merged, timestamp: Date.now() };
+          setLocalItem(STORAGE_KEYS.SETTINGS, merged);
+          return merged;
         }
-        return data;
       } catch (err) {
         console.warn('Supabase getGameSettings failed, falling back to local:', err);
       }
@@ -331,17 +362,18 @@ export const horrorApi = {
       total_rounds: 30,
       answers_revealed: false
     });
-    if (!local.total_rounds) {
-      local.total_rounds = 30;
-    }
-    local.total_rounds = Number(local.total_rounds) || 30;
+    const effectiveTotalRounds = savedTotalRounds !== null ? Number(savedTotalRounds) : (Number(local.total_rounds) || 30);
+    local.total_rounds = effectiveTotalRounds;
     cachedSettings = { data: local, timestamp: Date.now() };
     return local;
   },
 
   async updateGameSettings(updates) {
     cachedSettings = null; // Invalidate cache immediately on update
+    let newTotalRounds = undefined;
     if (updates.total_rounds !== undefined) {
+      newTotalRounds = Number(updates.total_rounds);
+      setLocalItem(STORAGE_KEYS.TOTAL_ROUNDS, newTotalRounds);
       cachedSongs = null; // Invalidate songs cache when question count changes
     }
     let updated = null;
@@ -372,13 +404,34 @@ export const horrorApi = {
     }
 
     const current = getLocalItem(STORAGE_KEYS.SETTINGS, {});
+    const activeTotalRounds = newTotalRounds !== undefined
+      ? newTotalRounds
+      : (getLocalItem(STORAGE_KEYS.TOTAL_ROUNDS, null) !== null
+          ? Number(getLocalItem(STORAGE_KEYS.TOTAL_ROUNDS))
+          : (Number((updated || updates).total_rounds) || Number(current.total_rounds) || 30));
+
     const finalSettings = {
       ...current,
       ...(updated || updates),
+      total_rounds: activeTotalRounds,
       updated_at: new Date().toISOString()
     };
     cachedSettings = { data: finalSettings, timestamp: Date.now() };
     setLocalItem(STORAGE_KEYS.SETTINGS, finalSettings);
+
+    // Broadcast instant Realtime notification to all connected browser sessions
+    if (realtimeChannel) {
+      try {
+        realtimeChannel.send({
+          type: 'broadcast',
+          event: 'settings_updated',
+          payload: finalSettings
+        });
+      } catch (e) {
+        console.warn('Realtime broadcast settings_updated error:', e);
+      }
+    }
+
     window.dispatchEvent(new CustomEvent('horror_settings_updated', { detail: finalSettings }));
     return finalSettings;
   },
