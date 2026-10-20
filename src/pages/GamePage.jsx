@@ -789,6 +789,16 @@ export default function GamePage({
     );
   }
 
+  // Fallback guard if currentSong is not loaded yet
+  if (!currentSong) {
+    return (
+      <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center gap-4 text-zinc-400 p-4 text-center">
+        <div className="w-10 h-10 border-4 border-red-600/20 border-t-red-600 rounded-full animate-spin" />
+        <p className="font-typewriter text-sm tracking-wider text-red-400">Loading trivia question...</p>
+      </div>
+    );
+  }
+
   // 12. ACTIVE ROUND TRIVIA INTERFACE
   const percentComplete = Math.round((stats.completedRounds / totalRounds) * 100);
   const hasAudioPlayed = roundState !== 'ready';
@@ -882,7 +892,7 @@ export default function GamePage({
             isPlaying={isAudioPlaying}
             onStartPlayback={handleStartPlayback}
             onAudioCompleted={handleAudioCompleted}
-            disabled={isLocked || isAnswering || isCheckingRoundState || gameSettings.game_status !== 'active'}
+            disabled={isLocked || isAnswering || checkingRoundState || gameSettings.game_status !== 'active'}
           />
         </div>
 

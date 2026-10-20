@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Atmosphere from './components/Atmosphere';
 import RulesModal from './components/RulesModal';
+import ErrorBoundary from './components/ErrorBoundary';
 import LandingPage from './pages/LandingPage';
 import RegisterPage from './pages/RegisterPage';
 import GamePage from './pages/GamePage';
@@ -38,6 +39,16 @@ export default function App() {
       if (stored) {
         const parsed = JSON.parse(stored);
         setParticipant(parsed);
+        // Verify in DB that participant wasn't wiped by an admin reset
+        if (parsed?.id) {
+          horrorApi.getParticipant(parsed.id).then(exists => {
+            if (!exists) {
+              console.info('Participant session wiped in DB. Clearing.');
+              localStorage.removeItem('horror_participant_session');
+              setParticipant(null);
+            }
+          }).catch(() => {});
+        }
       }
     } catch (e) {
       console.warn('Could not parse participant session:', e);
@@ -174,51 +185,53 @@ export default function App() {
         gameStatus={gameSettings.game_status}
       />
 
-      {/* Main View Container */}
-      <main className="flex-1 relative z-10">
-        {currentView === 'landing' && (
-          <LandingPage
-            onEnterGame={() => {
-              if (participant) {
-                handleSetCurrentView('game');
-              } else {
-                handleSetCurrentView('register');
-              }
-            }}
-            onOpenLeaderboard={() => handleSetCurrentView('leaderboard')}
-            onOpenRules={() => setIsRulesOpen(true)}
-            participant={participant}
-            gameSettings={gameSettings}
-          />
-        )}
+      {/* Main View Container wrapped in ErrorBoundary */}
+      <ErrorBoundary>
+        <main className="flex-1 relative z-10">
+          {currentView === 'landing' && (
+            <LandingPage
+              onEnterGame={() => {
+                if (participant) {
+                  handleSetCurrentView('game');
+                } else {
+                  handleSetCurrentView('register');
+                }
+              }}
+              onOpenLeaderboard={() => handleSetCurrentView('leaderboard')}
+              onOpenRules={() => setIsRulesOpen(true)}
+              participant={participant}
+              gameSettings={gameSettings}
+            />
+          )}
 
-        {currentView === 'register' && (
-          <RegisterPage
-            onRegistered={handleParticipantRegistered}
-            gameSettings={gameSettings}
-          />
-        )}
+          {currentView === 'register' && (
+            <RegisterPage
+              onRegistered={handleParticipantRegistered}
+              gameSettings={gameSettings}
+            />
+          )}
 
-        {currentView === 'game' && (
-          <GamePage
-            participant={participant}
-            onNeedRegister={() => handleSetCurrentView('register')}
-            onGoToLeaderboard={() => handleSetCurrentView('leaderboard')}
-            gameSettings={gameSettings}
-          />
-        )}
+          {currentView === 'game' && (
+            <GamePage
+              participant={participant}
+              onNeedRegister={() => handleSetCurrentView('register')}
+              onGoToLeaderboard={() => handleSetCurrentView('leaderboard')}
+              gameSettings={gameSettings}
+            />
+          )}
 
-        {currentView === 'leaderboard' && (
-          <LeaderboardPage
-            currentParticipant={participant}
-            gameSettings={gameSettings}
-          />
-        )}
+          {currentView === 'leaderboard' && (
+            <LeaderboardPage
+              currentParticipant={participant}
+              gameSettings={gameSettings}
+            />
+          )}
 
-        {currentView === 'admin' && (
-          <AdminDashboard />
-        )}
-      </main>
+          {currentView === 'admin' && (
+            <AdminDashboard />
+          )}
+        </main>
+      </ErrorBoundary>
 
       {/* Official Rules Modal */}
       <RulesModal

@@ -76,7 +76,7 @@ export default function LandingPage({ onEnterGame, onOpenLeaderboard, onOpenRule
             <h4 className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Max Points</h4>
           </div>
           <div className="p-4 rounded-2xl bg-[#12121a]/80 border border-red-950/60 backdrop-blur-sm">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-red-500">5s</span>
+            <span className="text-2xl sm:text-3xl font-black font-mono text-red-500">3s</span>
             <h4 className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Song Clips</h4>
           </div>
           <div className="p-4 rounded-2xl bg-[#12121a]/80 border border-red-950/60 backdrop-blur-sm">
