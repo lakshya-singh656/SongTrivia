@@ -1,8 +1,11 @@
 import React from 'react';
 import { Skull, X, CheckCircle2, AlertOctagon } from 'lucide-react';
 
-export default function RulesModal({ isOpen, onClose }) {
+export default function RulesModal({ isOpen, onClose, gameSettings }) {
   if (!isOpen) return null;
+
+  const totalRounds = Number(gameSettings?.total_rounds) || 30;
+  const maxScore = totalRounds * 10;
 
   const rules = [
     { num: 1, title: "Survivor Registration", desc: "Register using your real or survivor name before starting the challenge." },
@@ -10,10 +13,9 @@ export default function RulesModal({ isOpen, onClose }) {
     { num: 3, title: "Strict 10-Second Timer", desc: "A 10-second answer countdown begins automatically after audio ends. Submissions after time expires award 0 points." },
     { num: 4, title: "Speed Scoring: 10 or 8 Points", desc: "Correct answers submitted with more than 3 seconds left award 10 points. Correct answers in the final 3 seconds award 8 points." },
     { num: 5, title: "Zero Penalty", desc: "Wrong answers earn 0 points. There is no negative marking." },
-    { num: 6, title: "30 Chilling Rounds", desc: "There are exactly 30 rounds of horror themes, movie scores, and dark anthems." },
-    { num: 7, title: "300 Points Maximum", desc: "A perfect fast survival run awards the maximum possible score of 300 points." },
+    { num: 6, title: `${totalRounds} Chilling Rounds`, desc: `There are exactly ${totalRounds} rounds of horror themes, movie scores, and dark anthems in this event.` },
+    { num: 7, title: `${maxScore} Points Maximum`, desc: `A perfect fast survival run awards the maximum possible score of ${maxScore} points.` },
     { num: 8, title: "Live Leaderboard Rankings", desc: "Final rankings are sorted by total score, then correct answers, then earliest completion time." },
-
   ];
 
   return (

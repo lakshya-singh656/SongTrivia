@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Skull, User, ArrowRight, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
 import { horrorApi } from '../services/supabase';
 
-export default function RegisterPage({ onRegistered }) {
+export default function RegisterPage({ onRegistered, gameSettings }) {
+  const totalRounds = Number(gameSettings?.total_rounds) || 30;
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,7 +51,7 @@ export default function RegisterPage({ onRegistered }) {
             Survivor Registration
           </h2>
           <p className="text-xs text-zinc-400 mt-2 font-typewriter">
-            Enter your name to step into the 30-round arena
+            Enter your name to step into the {totalRounds}-round arena ({totalRounds * 10} Max PTS)
           </p>
         </div>
 

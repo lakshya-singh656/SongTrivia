@@ -1,17 +1,19 @@
 import React from 'react';
 import { Skull, Trophy, Play, Music, Flame, Shield, ArrowRight, Sparkles, Volume2 } from 'lucide-react';
 
-export default function LandingPage({ onEnterGame, onOpenLeaderboard, onOpenRules, participant }) {
+export default function LandingPage({ onEnterGame, onOpenLeaderboard, onOpenRules, participant, gameSettings }) {
+  const totalRounds = Number(gameSettings?.total_rounds) || 30;
+  const maxScore = totalRounds * 10;
+
   const rulesList = [
     { num: 1, text: "Register your survivor name before playing." },
     { num: 2, text: "Each 5–10s audio clip plays ONLY ONCE. No replays permitted." },
     { num: 3, text: "Strict 10-second timer begins right after audio ends. Submit before 0s." },
     { num: 4, text: "Every correct answer earns 10 points." },
     { num: 5, text: "Wrong answers or expired timers earn 0 points." },
-    { num: 6, text: "There are 30 chilling horror song rounds." },
-    { num: 7, text: "Maximum possible score: 300 points." },
+    { num: 6, text: `There are ${totalRounds} chilling horror song rounds.` },
+    { num: 7, text: `Maximum possible score: ${maxScore} points.` },
     { num: 8, text: "Final rankings are based on highest total score." },
-
   ];
 
   return (
@@ -38,7 +40,7 @@ export default function LandingPage({ onEnterGame, onOpenLeaderboard, onOpenRule
 
         {/* Description */}
         <p className="text-sm sm:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed mb-10">
-          Step into the shadows for 30 spine-chilling audio rounds. From iconic slasher themes 
+          Step into the shadows for {totalRounds} spine-chilling audio rounds. From iconic slasher themes 
           and demonic chimes to 80s synth nightmares and gothic anthems—test your ears, type your answer, 
           and claim your spot on the survivor leaderboard.
         </p>
@@ -66,11 +68,11 @@ export default function LandingPage({ onEnterGame, onOpenLeaderboard, onOpenRule
         {/* Atmospheric Metric Badges */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-16">
           <div className="p-4 rounded-2xl bg-[#12121a]/80 border border-red-950/60 backdrop-blur-sm">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-red-500">30</span>
+            <span className="text-2xl sm:text-3xl font-black font-mono text-red-500">{totalRounds}</span>
             <h4 className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Horror Rounds</h4>
           </div>
           <div className="p-4 rounded-2xl bg-[#12121a]/80 border border-red-950/60 backdrop-blur-sm">
-            <span className="text-2xl sm:text-3xl font-black font-mono text-red-500">300</span>
+            <span className="text-2xl sm:text-3xl font-black font-mono text-red-500">{maxScore}</span>
             <h4 className="text-xs uppercase tracking-wider text-zinc-400 mt-1">Max Points</h4>
           </div>
           <div className="p-4 rounded-2xl bg-[#12121a]/80 border border-red-950/60 backdrop-blur-sm">

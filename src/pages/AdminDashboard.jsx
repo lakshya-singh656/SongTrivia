@@ -143,13 +143,27 @@ export default function AdminDashboard({ onAdminStateChange }) {
     setSession(null);
   };
 
-  // Update Game Status (with strict 30-round validation on start/activate)
+  // Update Question Count (10, 20, or 30 Questions)
+  const handleUpdateQuestionCount = async (newCount) => {
+    try {
+      const count = Number(newCount);
+      await horrorApi.updateGameSettings({ total_rounds: count });
+      setGameSettings(prev => ({ ...prev, total_rounds: count }));
+      showSuccessBanner(`Question count set to ${count} questions (${count * 10} maximum points).`);
+    } catch (e) {
+      alert('Error changing question count: ' + e.message);
+    }
+  };
+
+  // Update Game Status (with dynamic validation up to selected round count on start/activate)
   const handleStatusChange = async (newStatus) => {
+    const targetRounds = Number(gameSettings.total_rounds) || 30;
+
     if (newStatus === 'active') {
-      // Requirement 10: Validate that all 30 rounds are configured correctly before allowing the organizer to start the game.
+      // Validate that all active rounds are configured correctly before allowing the organizer to start the game.
       const invalidRounds = [];
 
-      for (let r = 1; r <= 30; r++) {
+      for (let r = 1; r <= targetRounds; r++) {
         const song = songs.find(s => s.round_number === r);
         if (!song) {
           invalidRounds.push(`Round ${r}: Missing song entry`);
@@ -182,7 +196,7 @@ export default function AdminDashboard({ onAdminStateChange }) {
 
       if (invalidRounds.length > 0) {
         alert(
-          `Cannot start the game! All 30 rounds must have 4 unique options and 1 correct answer.\n\nIssues found (${invalidRounds.length}):\n` +
+          `Cannot start the game! All ${targetRounds} active rounds must have 4 unique options and 1 correct answer.\n\nIssues found (${invalidRounds.length}):\n` +
           invalidRounds.slice(0, 8).join('\n') +
           (invalidRounds.length > 8 ? `\n...and ${invalidRounds.length - 8} more` : '')
         );
@@ -211,10 +225,11 @@ export default function AdminDashboard({ onAdminStateChange }) {
     }
   };
 
-  // Shuffle 30 Rounds & MCQ Options
+  // Shuffle Rounds & MCQ Options
   const handleShuffleSongs = async () => {
+    const targetRounds = Number(gameSettings.total_rounds) || 30;
     const confirmed = window.confirm(
-      "🔀 SHUFFLE QUESTIONS & OPTIONS?\n\nThis will randomly reorder all 30 rounds and shuffle the multiple-choice options (A, B, C, D) for each question.\n\nAll connected survivors will instantly receive the newly shuffled questions.\n\nDo you want to proceed?"
+      `🔀 SHUFFLE QUESTIONS & OPTIONS?\n\nThis will randomly reorder questions and shuffle the multiple-choice options (A, B, C, D) for each question.\n\nYour active event will use the first ${targetRounds} shuffled questions.\n\nAll connected survivors will instantly receive the newly shuffled questions.\n\nDo you want to proceed?`
     );
     if (!confirmed) return;
 
@@ -225,7 +240,7 @@ export default function AdminDashboard({ onAdminStateChange }) {
         setSongs(shuffled);
       }
       await loadAdminData();
-      showSuccessBanner("🔀 All 30 questions and multiple-choice options have been shuffled!");
+      showSuccessBanner(`🔀 All questions and multiple-choice options shuffled! First ${targetRounds} questions are active.`);
     } catch (err) {
       console.error("Shuffle failed:", err);
       alert("Shuffle failed: " + (err.message || 'Unknown error'));
@@ -350,13 +365,13 @@ export default function AdminDashboard({ onAdminStateChange }) {
       await horrorApi.resetGame();
       setParticipants([]);
       setSubmissions([]);
-      setGameSettings({
+      setGameSettings(prev => ({
         id: 1,
         game_status: 'waiting',
         current_round: 1,
-        total_rounds: 30,
+        total_rounds: prev.total_rounds || 30,
         answers_revealed: false
-      });
+      }));
       await loadAdminData();
       showSuccessBanner('Lobby has been reset! All participant scores wiped and status set to waiting.');
     } catch (e) {
@@ -376,13 +391,13 @@ export default function AdminDashboard({ onAdminStateChange }) {
       setResetConfirmText('');
       setParticipants([]);
       setSubmissions([]);
-      setGameSettings({
+      setGameSettings(prev => ({
         id: 1,
         game_status: 'waiting',
         current_round: 1,
-        total_rounds: 30,
+        total_rounds: prev.total_rounds || 30,
         answers_revealed: false
-      });
+      }));
       await loadAdminData();
       showSuccessBanner('Game has been reset. All submissions wiped and status set to waiting.');
     } catch (e) {
@@ -746,6 +761,61 @@ export default function AdminDashboard({ onAdminStateChange }) {
             </button>
           </div>
         </div>
+
+        {/* Question Count Selector: 10, 20, or 30 questions */}
+        <div className="mt-5 pt-4 border-t border-zinc-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-red-950 border border-red-700/60 flex items-center justify-center text-sm shadow-[0_0_12px_rgba(220,38,38,0.4)]">
+              🎯
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-mono uppercase tracking-wider text-zinc-100 font-bold">
+                  Event Question Count:
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-red-950 text-red-300 border border-red-800 text-xs font-mono font-bold">
+                  {gameSettings.total_rounds || 30} Questions
+                </span>
+                <span className="text-xs font-mono text-zinc-500">
+                  ({((Number(gameSettings.total_rounds) || 30) * 10)} Max PTS)
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-0.5">
+                Limit challenge length for participants: 10 Blitz, 20 Standard, or 30 Full Gauntlet.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            {[
+              { count: 10, label: '10 Ques', icon: '⚡', desc: '100 PTS' },
+              { count: 20, label: '20 Ques', icon: '🎯', desc: '200 PTS' },
+              { count: 30, label: '30 Ques', icon: '💀', desc: '300 PTS' }
+            ].map(item => {
+              const isSelected = (Number(gameSettings.total_rounds) || 30) === item.count;
+              return (
+                <button
+                  key={item.count}
+                  type="button"
+                  onClick={() => handleUpdateQuestionCount(item.count)}
+                  className={`flex-1 md:flex-initial px-4 py-2 rounded-xl text-xs font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                    isSelected
+                      ? 'bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.7)] border border-red-500 scale-105 ring-1 ring-red-400'
+                      : 'bg-zinc-900 text-zinc-400 hover:text-zinc-100 border border-zinc-800 hover:border-zinc-700'
+                  }`}
+                >
+                  <span>{item.icon}</span>
+                  <span>{item.label}</span>
+                  <span className={`text-[10px] font-normal px-1.5 py-0.5 rounded ${
+                    isSelected ? 'bg-red-800/90 text-white font-semibold' : 'bg-zinc-950 text-zinc-500'
+                  }`}>
+                    {item.desc}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Admin Summary Metric Badges */}
@@ -788,7 +858,7 @@ export default function AdminDashboard({ onAdminStateChange }) {
         <div className="p-4 rounded-2xl bg-[#12121a] border border-zinc-900">
           <span className="text-xs text-zinc-500 uppercase tracking-wider block">Rounds Ready</span>
           <span className="text-2xl font-mono font-bold text-white mt-1 block">
-            {roundsWithAudio}/30
+            {roundsWithAudio}/{gameSettings.total_rounds || 30}
           </span>
         </div>
       </div>
@@ -803,7 +873,7 @@ export default function AdminDashboard({ onAdminStateChange }) {
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          30-Round Audio Manager ({songs.length}/30)
+          Audio & Options Manager ({gameSettings.total_rounds || 30} Active / {songs.length} Total)
         </button>
 
         <button
@@ -876,10 +946,28 @@ export default function AdminDashboard({ onAdminStateChange }) {
                   {songs.map((song) => {
                     const hasAudio = Boolean(song.audio_path);
                     const corrOpt = song.correct_option || 'A';
+                    const targetRounds = Number(gameSettings.total_rounds) || 30;
+                    const isActive = song.round_number <= targetRounds;
                     return (
-                      <tr key={song.round_number} className="hover:bg-zinc-900/40 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-red-400">
-                          #{song.round_number}
+                      <tr 
+                        key={song.round_number} 
+                        className={`transition-colors ${isActive ? 'hover:bg-zinc-900/40' : 'opacity-60 hover:opacity-90 bg-black/20'}`}
+                      >
+                        <td className="py-3.5 px-4 font-mono font-bold">
+                          <div className="flex items-center gap-2">
+                            <span className={isActive ? "text-red-400 font-bold text-sm" : "text-zinc-500 text-sm"}>
+                              #{song.round_number}
+                            </span>
+                            {isActive ? (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold font-mono bg-emerald-950 text-emerald-400 border border-emerald-800">
+                                ACTIVE
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-mono text-zinc-500 bg-zinc-900 border border-zinc-800">
+                                RESERVE
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 font-semibold text-zinc-200">
                           {song.title || `Round ${song.round_number}`}

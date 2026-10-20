@@ -2,12 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, Medal, Skull, Search, RefreshCw, Sparkles, Clock, CheckCircle2, User } from 'lucide-react';
 import { horrorApi } from '../services/supabase';
 
-export default function LeaderboardPage({ currentParticipant }) {
+export default function LeaderboardPage({ currentParticipant, gameSettings: propGameSettings }) {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [gameSettings, setGameSettings] = useState({ game_status: 'waiting', answers_revealed: false });
+  const [gameSettings, setGameSettings] = useState(propGameSettings || { game_status: 'waiting', answers_revealed: false, total_rounds: 30 });
+
+  useEffect(() => {
+    if (propGameSettings) {
+      setGameSettings(propGameSettings);
+    }
+  }, [propGameSettings]);
+
+  const totalQuestions = Number(gameSettings?.total_rounds) || 30;
 
   const debounceTimerRef = React.useRef(null);
 
@@ -138,7 +146,7 @@ export default function LeaderboardPage({ currentParticipant }) {
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[10px]">CORRECT</span>
-                  <span className="font-mono font-bold text-emerald-400 text-base">{topThree[1].correct_count}/30</span>
+                  <span className="font-mono font-bold text-emerald-400 text-base">{topThree[1].correct_count}/{totalQuestions}</span>
                 </div>
               </div>
             </div>
@@ -165,7 +173,7 @@ export default function LeaderboardPage({ currentParticipant }) {
                 </div>
                 <div>
                   <span className="text-red-300 block text-[10px]">ACCURACY</span>
-                  <span className="font-mono font-black text-emerald-400 text-xl">{topThree[0].correct_count} / 30</span>
+                  <span className="font-mono font-black text-emerald-400 text-xl">{topThree[0].correct_count} / {totalQuestions}</span>
                 </div>
               </div>
             </div>
@@ -192,7 +200,7 @@ export default function LeaderboardPage({ currentParticipant }) {
                 </div>
                 <div>
                   <span className="text-zinc-500 block text-[10px]">CORRECT</span>
-                  <span className="font-mono font-bold text-emerald-400 text-base">{topThree[2].correct_count}/30</span>
+                  <span className="font-mono font-bold text-emerald-400 text-base">{topThree[2].correct_count}/{totalQuestions}</span>
                 </div>
               </div>
             </div>
@@ -241,7 +249,7 @@ export default function LeaderboardPage({ currentParticipant }) {
               <tr className="border-b border-zinc-800/80 bg-zinc-950/70 text-zinc-400 text-[11px] font-mono uppercase tracking-wider">
                 <th className="py-4 px-4 sm:px-6">Rank</th>
                 <th className="py-4 px-4">Survivor</th>
-                <th className="py-4 px-4 text-center">Score (/300)</th>
+                <th className="py-4 px-4 text-center">Score (/{totalQuestions * 10})</th>
                 <th className="py-4 px-4 text-center">Correct</th>
                 <th className="py-4 px-4 text-center hidden sm:table-cell">Rounds</th>
               </tr>
@@ -311,14 +319,14 @@ export default function LeaderboardPage({ currentParticipant }) {
                       {/* Correct Answers */}
                       <td className="py-4 px-4 text-center">
                         <span className="font-mono text-xs font-semibold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-md border border-emerald-900/60">
-                          {survivor.correct_count} / 30
+                          {survivor.correct_count} / {totalQuestions}
                         </span>
                       </td>
 
                       {/* Completed Rounds */}
                       <td className="py-4 px-4 text-center hidden sm:table-cell">
                         <span className="font-mono text-xs text-zinc-400">
-                          {survivor.completed_rounds || 0} / 30
+                          {survivor.completed_rounds || 0} / {totalQuestions}
                         </span>
                       </td>
                     </tr>

@@ -331,12 +331,19 @@ export const horrorApi = {
       total_rounds: 30,
       answers_revealed: false
     });
+    if (!local.total_rounds) {
+      local.total_rounds = 30;
+    }
+    local.total_rounds = Number(local.total_rounds) || 30;
     cachedSettings = { data: local, timestamp: Date.now() };
     return local;
   },
 
   async updateGameSettings(updates) {
     cachedSettings = null; // Invalidate cache immediately on update
+    if (updates.total_rounds !== undefined) {
+      cachedSongs = null; // Invalidate songs cache when question count changes
+    }
     let updated = null;
     if (isSupabaseConfigured) {
       try {
@@ -381,8 +388,9 @@ export const horrorApi = {
     // Participants fetch: returns songs with 4 options, strictly withholding correct_option unless answers_revealed is true!
     const settings = await this.getGameSettings();
     const answersRevealed = Boolean(settings?.answers_revealed);
+    const totalRounds = Number(settings?.total_rounds) || 30;
 
-    if (!forceRefresh && cachedSongs && Date.now() - cachedSongs.timestamp < CACHE_TTL.SONGS && cachedSongs.answersRevealed === answersRevealed) {
+    if (!forceRefresh && cachedSongs && Date.now() - cachedSongs.timestamp < CACHE_TTL.SONGS && cachedSongs.answersRevealed === answersRevealed && cachedSongs.totalRounds === totalRounds) {
       return cachedSongs.data;
     }
 
@@ -390,8 +398,9 @@ export const horrorApi = {
       try {
         const { data, error } = await supabase.rpc('get_playable_songs');
         if (!error && Array.isArray(data) && data.length > 0) {
-          cachedSongs = { data, timestamp: Date.now(), answersRevealed };
-          return data;
+          const sliced = data.slice(0, totalRounds);
+          cachedSongs = { data: sliced, timestamp: Date.now(), answersRevealed, totalRounds };
+          return sliced;
         }
         if (error) {
           console.warn('Supabase get_playable_songs rpc failed, falling back to direct table query:', error);
@@ -425,8 +434,9 @@ export const horrorApi = {
             correct_answer: answersRevealed ? (song.correct_answer || song[`option_${(song.correct_option || 'A').toLowerCase()}`]) : null,
             accepted_answers: answersRevealed ? song.accepted_answers : null
           }));
-          cachedSongs = { data: songsList, timestamp: Date.now(), answersRevealed };
-          return songsList;
+          const sliced = songsList.slice(0, totalRounds);
+          cachedSongs = { data: sliced, timestamp: Date.now(), answersRevealed, totalRounds };
+          return sliced;
         }
       } catch (tableErr) {
         console.warn('Direct songs table query failed:', tableErr);
@@ -453,8 +463,9 @@ export const horrorApi = {
       correct_answer: answersRevealed ? (song.correct_answer || song[`option_${(song.correct_option || 'A').toLowerCase()}`]) : null,
       accepted_answers: answersRevealed ? song.accepted_answers : null
     }));
-    cachedSongs = { data: localSongs, timestamp: Date.now(), answersRevealed };
-    return localSongs;
+    const sliced = localSongs.slice(0, totalRounds);
+    cachedSongs = { data: sliced, timestamp: Date.now(), answersRevealed, totalRounds };
+    return sliced;
   },
 
   async getAllAdminSongs() {
@@ -1212,7 +1223,9 @@ export const horrorApi = {
         participants[pIndex].total_score = totalScore;
         participants[pIndex].correct_count = correctCount;
         participants[pIndex].completed_rounds = completedRounds;
-        if (completedRounds >= 30 && !participants[pIndex].completion_time) {
+        const currentSettings = getLocalItem(STORAGE_KEYS.SETTINGS, {});
+        const targetRounds = Number(currentSettings.total_rounds) || 30;
+        if (completedRounds >= targetRounds && !participants[pIndex].completion_time) {
           participants[pIndex].completion_time = new Date().toISOString();
         }
         setLocalItem(STORAGE_KEYS.PARTICIPANTS, participants);
@@ -1288,7 +1301,9 @@ export const horrorApi = {
       participants[pIndex].total_score = totalScore;
       participants[pIndex].correct_count = correctCount;
       participants[pIndex].completed_rounds = completedRounds;
-      if (completedRounds >= 30 && !participants[pIndex].completion_time) {
+      const currentSettings = getLocalItem(STORAGE_KEYS.SETTINGS, {});
+      const targetRounds = Number(currentSettings.total_rounds) || 30;
+      if (completedRounds >= targetRounds && !participants[pIndex].completion_time) {
         participants[pIndex].completion_time = new Date().toISOString();
       }
       setLocalItem(STORAGE_KEYS.PARTICIPANTS, participants);

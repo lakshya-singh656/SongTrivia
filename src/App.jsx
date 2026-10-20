@@ -188,12 +188,14 @@ export default function App() {
             onOpenLeaderboard={() => handleSetCurrentView('leaderboard')}
             onOpenRules={() => setIsRulesOpen(true)}
             participant={participant}
+            gameSettings={gameSettings}
           />
         )}
 
         {currentView === 'register' && (
           <RegisterPage
             onRegistered={handleParticipantRegistered}
+            gameSettings={gameSettings}
           />
         )}
 
@@ -202,12 +204,14 @@ export default function App() {
             participant={participant}
             onNeedRegister={() => handleSetCurrentView('register')}
             onGoToLeaderboard={() => handleSetCurrentView('leaderboard')}
+            gameSettings={gameSettings}
           />
         )}
 
         {currentView === 'leaderboard' && (
           <LeaderboardPage
             currentParticipant={participant}
+            gameSettings={gameSettings}
           />
         )}
 
@@ -220,6 +224,7 @@ export default function App() {
       <RulesModal
         isOpen={isRulesOpen}
         onClose={() => setIsRulesOpen(false)}
+        gameSettings={gameSettings}
       />
     </div>
   );

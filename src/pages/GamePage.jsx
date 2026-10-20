@@ -12,10 +12,11 @@ import { horrorSoundEngine } from '../services/soundGenerator';
 export default function GamePage({ 
   participant, 
   onNeedRegister, 
-  onGoToLeaderboard 
+  onGoToLeaderboard,
+  gameSettings: propGameSettings
 }) {
   const [songs, setSongs] = useState([]);
-  const [currentRoundIndex, setCurrentRoundIndex] = useState(0); // 0 to 29
+  const [currentRoundIndex, setCurrentRoundIndex] = useState(0); // 0 to totalRounds - 1
   const [submissions, setSubmissions] = useState({}); // { [songId]: submissionObj }
   
   // Anti-cheating Round States: 'ready' | 'audio_playing' | 'answering' | 'submitted' | 'time_expired'
@@ -25,7 +26,11 @@ export default function GamePage({
   const [selectedOption, setSelectedOption] = useState(null); // 'A' | 'B' | 'C' | 'D'
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionFeedback, setSubmissionFeedback] = useState(null);
-  const [gameSettings, setGameSettings] = useState({ game_status: 'waiting', answers_revealed: false });
+  const [gameSettings, setGameSettings] = useState(propGameSettings || { 
+    game_status: 'waiting', 
+    answers_revealed: false,
+    total_rounds: 30
+  });
   const [waitingParticipants, setWaitingParticipants] = useState([]);
   const [isRefreshingWaiting, setIsRefreshingWaiting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -40,6 +45,31 @@ export default function GamePage({
 
   const timerIntervalRef = useRef(null);
   const autoAdvanceTimeoutRef = useRef(null);
+
+  // Synchronize with external propGameSettings if passed
+  useEffect(() => {
+    if (propGameSettings) {
+      setGameSettings(propGameSettings);
+    }
+  }, [propGameSettings]);
+
+  // Handle Question Count Change from Waiting Room
+  const handleUpdateLobbyQuestionCount = async (count) => {
+    try {
+      const num = Number(count);
+      await horrorApi.updateGameSettings({ total_rounds: num });
+      setGameSettings(prev => ({ ...prev, total_rounds: num }));
+      const freshSongs = await horrorApi.getPlayableSongs(true);
+      if (freshSongs) {
+        setSongs(freshSongs);
+        if (currentRoundIndex >= num) {
+          setCurrentRoundIndex(num - 1);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not update total rounds from lobby:', e);
+    }
+  };
 
   // Live Waiting Room synchronization
   const fetchWaitingList = async (showSpinner = false) => {
@@ -133,8 +163,16 @@ export default function GamePage({
     loadGameData();
 
     // Event listeners
-    const handleSettingsUpdate = (e) => {
-      if (e.detail) setGameSettings(e.detail);
+    const handleSettingsUpdate = async (e) => {
+      if (e.detail) {
+        setGameSettings(e.detail);
+        try {
+          const freshSongs = await horrorApi.getPlayableSongs(true);
+          if (freshSongs && isMounted) {
+            setSongs(freshSongs);
+          }
+        } catch (err) {}
+      }
     };
     const handleReset = () => {
       setSubmissions({});
@@ -201,20 +239,21 @@ export default function GamePage({
     };
   }, [participant]);
 
-  // Current Song
-  const currentSong = songs[currentRoundIndex] || null;
+  // Current Song & Round Limits
+  const totalRounds = Number(gameSettings.total_rounds) || (songs.length ? Math.min(songs.length, 30) : 30);
+  const playableSongs = songs.slice(0, totalRounds);
+  const currentSong = playableSongs[currentRoundIndex] || null;
   const currentRoundNum = currentRoundIndex + 1;
-  const totalRounds = songs.length || 30;
   const currentSubmission = currentSong ? submissions[currentSong.id] : null;
 
   // Background Audio Preloading: Pre-buffer current and next round audio into browser cache
   useEffect(() => {
-    if (!songs || songs.length === 0) return;
-    const current = songs[currentRoundIndex];
+    if (!playableSongs || playableSongs.length === 0) return;
+    const current = playableSongs[currentRoundIndex];
     if (current?.audio_path) {
       horrorSoundEngine.preloadAudio(current.audio_path);
     }
-    const next = songs[currentRoundIndex + 1];
+    const next = playableSongs[currentRoundIndex + 1];
     if (next?.audio_path) {
       horrorSoundEngine.preloadAudio(next.audio_path);
     }
@@ -577,7 +616,7 @@ export default function GamePage({
           </p>
 
           {/* Player Quick Info Cards */}
-          <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-950/90 border border-zinc-900 flex items-center justify-around text-center mb-6">
+          <div className="p-3.5 sm:p-4 rounded-2xl bg-zinc-950/90 border border-zinc-900 flex items-center justify-around text-center mb-5">
             <div>
               <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Participant ID</p>
               <p className="text-xs sm:text-sm font-mono font-bold text-zinc-200">{participant.participant_code}</p>
@@ -585,12 +624,52 @@ export default function GamePage({
             <div className="w-px h-8 bg-zinc-800" />
             <div>
               <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Format</p>
-              <p className="text-xs sm:text-sm font-mono font-bold text-zinc-200">30 MCQ Rounds</p>
+              <p className="text-xs sm:text-sm font-mono font-bold text-zinc-200">{totalRounds} MCQ Rounds</p>
             </div>
             <div className="w-px h-8 bg-zinc-800" />
             <div>
               <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Total Points</p>
-              <p className="text-xs sm:text-sm font-mono font-bold text-amber-400">300 PTS</p>
+              <p className="text-xs sm:text-sm font-mono font-bold text-amber-400">{totalRounds * 10} PTS</p>
+            </div>
+          </div>
+
+          {/* Question Count Option in Lobby */}
+          <div className="mb-6 p-4 rounded-2xl bg-zinc-950/80 border border-red-950/70 text-left">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-mono uppercase tracking-wider text-zinc-200 font-bold flex items-center gap-1.5">
+                  <span className="text-red-500">🎯</span>
+                  <span>Questions In This Event</span>
+                </p>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Choose between 10, 20, or 30 questions for this trivia challenge
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {[
+                  { count: 10, label: '10 Ques', icon: '⚡' },
+                  { count: 20, label: '20 Ques', icon: '🎯' },
+                  { count: 30, label: '30 Ques', icon: '💀' }
+                ].map(item => {
+                  const isSel = totalRounds === item.count;
+                  return (
+                    <button
+                      key={item.count}
+                      type="button"
+                      onClick={() => handleUpdateLobbyQuestionCount(item.count)}
+                      className={`flex-1 sm:flex-initial px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        isSel
+                          ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.7)] border border-red-500 scale-105'
+                          : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
@@ -726,14 +805,14 @@ export default function GamePage({
           </h2>
 
           <p className="text-sm text-zinc-400 font-typewriter max-w-md mx-auto mb-6">
-            Congratulations, survivor {participant.name}. All 30 rounds are locked and evaluated.
+            Congratulations, survivor {participant.name}. All {totalRounds} rounds are locked and evaluated.
           </p>
 
           <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-zinc-950 border border-zinc-900 mb-8 max-w-lg mx-auto">
             <div>
               <p className="text-xs text-zinc-500 uppercase tracking-wider">Final Score</p>
               <p className="text-2xl sm:text-3xl font-black font-mono text-red-500 mt-1">
-                {stats.score} <span className="text-xs text-zinc-500 font-normal">/ 300</span>
+                {stats.score} <span className="text-xs text-zinc-500 font-normal">/ {totalRounds * 10}</span>
               </p>
             </div>
             <div>
@@ -818,7 +897,7 @@ export default function GamePage({
             <div className="px-4 py-1.5 rounded-xl bg-red-950/70 border border-red-800/80 text-right shadow-[0_0_15px_rgba(220,38,38,0.3)]">
               <span className="text-[10px] text-red-400 uppercase font-semibold block">Total Score</span>
               <span className="text-base font-mono font-black text-white">
-                {stats.score} <span className="text-xs font-normal text-red-300">/ 300 PTS</span>
+                {stats.score} <span className="text-xs font-normal text-red-300">/ {totalRounds * 10} PTS</span>
               </span>
             </div>
           </div>
@@ -1224,7 +1303,7 @@ export default function GamePage({
         </div>
 
         <div className="grid grid-cols-6 sm:grid-cols-10 md:grid-cols-15 gap-2">
-          {songs.map((s, idx) => {
+          {playableSongs.map((s, idx) => {
             const sub = submissions[s.id];
             const isCurrent = idx === currentRoundIndex;
             const isCompleted = Boolean(sub);
