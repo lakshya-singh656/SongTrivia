@@ -590,14 +590,24 @@ export default function AdminDashboard({ onAdminStateChange }) {
               30 Rounds & Realtime Live
             </span>
           </div>
-          <button
-            type="button"
-            onClick={loadAdminData}
-            className="text-[11px] text-emerald-400 hover:text-emerald-200 flex items-center gap-1 cursor-pointer font-medium"
-          >
-            <RefreshCw className="w-3 h-3" />
-            <span>Sync</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <a
+              href="https://supabase.com/dashboard/project/npjsysfagimulasonbpu/sql/new"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-amber-400 hover:text-amber-200 flex items-center gap-1 font-mono"
+            >
+              SQL Editor &bull;
+            </a>
+            <button
+              type="button"
+              onClick={loadAdminData}
+              className="text-[11px] text-emerald-400 hover:text-emerald-200 flex items-center gap-1 cursor-pointer font-medium"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Sync</span>
+            </button>
+          </div>
         </div>
       );
     }
@@ -1384,7 +1394,7 @@ export default function AdminDashboard({ onAdminStateChange }) {
                         <td className="py-3 px-4 text-center">
                           {sub.is_correct ? (
                             <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">
-                              +10 PTS
+                              +{sub.points_awarded ?? 10} PTS
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-red-950 text-red-400 border border-red-800">
