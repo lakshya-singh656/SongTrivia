@@ -7,6 +7,8 @@ class HorrorSoundEngine {
     this.isAmbientPlaying = false;
     this.currentAudioElement = null;
     this.activeSynthTimeouts = [];
+    this.durationCache = new Map();
+    this.preloadCache = new Map();
   }
 
   getAudioContext() {
@@ -22,30 +24,64 @@ class HorrorSoundEngine {
     return this.audioCtx;
   }
 
-  // Probe audio duration from metadata before playing
+  // Preload an audio clip into browser HTTP and memory cache for smooth playback
+  preloadAudio(url) {
+    if (!url || (!url.startsWith('http') && !url.startsWith('blob:'))) return;
+    if (this.preloadCache.has(url)) return;
+
+    try {
+      const audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = url;
+      // Keep reference to trigger browser buffering
+      this.preloadCache.set(url, audio);
+      // Clean up after 5 minutes if not used
+      setTimeout(() => {
+        if (this.preloadCache.has(url)) {
+          this.preloadCache.delete(url);
+        }
+      }, 300000);
+    } catch (e) {
+      console.warn('Audio preload silent error:', e);
+    }
+  }
+
+  // Probe audio duration from metadata or return cached/configured duration
   async getAudioDuration(url, fallbackDuration = 8.0) {
     if (!url || (!url.startsWith('http') && !url.startsWith('blob:'))) {
       return fallbackDuration;
     }
+    if (this.durationCache.has(url)) {
+      return this.durationCache.get(url);
+    }
+    // If fallback is already a specific valid duration (e.g. from songs table), use it to avoid blocking
+    if (fallbackDuration && fallbackDuration > 0 && fallbackDuration !== 8.0) {
+      this.durationCache.set(url, fallbackDuration);
+      return fallbackDuration;
+    }
+
     return new Promise((resolve) => {
       const audio = new Audio();
       const timer = setTimeout(() => {
+        this.durationCache.set(url, fallbackDuration);
         resolve(fallbackDuration);
-      }, 3000);
+      }, 2500);
 
       audio.addEventListener('loadedmetadata', () => {
         clearTimeout(timer);
         if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-          // Trivia rounds use 5-10s clips, minimum 3s
           const dur = Math.min(10, Math.max(3, Math.round(audio.duration * 10) / 10));
+          this.durationCache.set(url, dur);
           resolve(dur);
         } else {
+          this.durationCache.set(url, fallbackDuration);
           resolve(fallbackDuration);
         }
       });
 
       audio.addEventListener('error', () => {
         clearTimeout(timer);
+        this.durationCache.set(url, fallbackDuration);
         resolve(fallbackDuration);
       });
 

@@ -76,37 +76,67 @@ export default function App() {
     window.addEventListener('horror_settings_updated', handleSettingsUpdate);
     window.addEventListener('horror_game_reset', handleGameReset);
 
-    // Periodic poll for game settings so Navbar and entire app stay in sync with remote database
-    const settingsPollInterval = setInterval(async () => {
-      try {
-        const fresh = await horrorApi.getGameSettings();
-        if (fresh) {
-          setGameSettings(fresh);
+    // 5. Supabase Realtime subscription for instant (<50ms) push updates without polling
+    const unsubscribeRealtime = horrorApi.subscribeToGameSettings((newSettings) => {
+      if (newSettings) {
+        setGameSettings(newSettings);
+        // If game transitioned to waiting, check if participant record was wiped
+        if (newSettings.game_status === 'waiting') {
+          verifyParticipantExistence();
         }
+      }
+    });
 
-        // If a participant is logged in, verify they still exist on server (wiped on lobby reset)
+    // Helper to verify participant existence on server
+    const verifyParticipantExistence = async () => {
+      try {
         const stored = localStorage.getItem('horror_participant_session');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed?.id) {
-            const exists = await horrorApi.getParticipant(parsed.id);
-            if (!exists) {
-              console.info('Participant record wiped from database. Forcing re-registration.');
-              localStorage.removeItem('horror_participant_session');
-              setParticipant(null);
-              setCurrentView(prev => prev === 'game' ? 'register' : prev);
-            }
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        if (parsed?.id) {
+          const exists = await horrorApi.getParticipant(parsed.id);
+          if (!exists) {
+            console.info('Participant record wiped from database. Forcing re-registration.');
+            localStorage.removeItem('horror_participant_session');
+            setParticipant(null);
+            setCurrentView(prev => prev === 'game' ? 'register' : prev);
           }
         }
       } catch (e) {}
-    }, 4000);
+    };
+
+    // 6. Adaptive fallback poll with random jitter (10-15s) to prevent thundering-herd on 100 participants
+    let pollTimerId = null;
+    let isMounted = true;
+
+    const scheduleNextPoll = () => {
+      if (!isMounted) return;
+      // Random jitter between 11000ms and 16000ms
+      const jitteredInterval = 11000 + Math.floor(Math.random() * 5000);
+      pollTimerId = setTimeout(async () => {
+        try {
+          const fresh = await horrorApi.getGameSettings();
+          if (fresh && isMounted) {
+            setGameSettings(fresh);
+            if (fresh.game_status === 'waiting') {
+              await verifyParticipantExistence();
+            }
+          }
+        } catch (e) {}
+        scheduleNextPoll();
+      }, jitteredInterval);
+    };
+
+    scheduleNextPoll();
 
     return () => {
+      isMounted = false;
       window.removeEventListener('popstate', handleLocationChange);
       window.removeEventListener('hashchange', handleLocationChange);
       window.removeEventListener('horror_settings_updated', handleSettingsUpdate);
       window.removeEventListener('horror_game_reset', handleGameReset);
-      clearInterval(settingsPollInterval);
+      if (unsubscribeRealtime) unsubscribeRealtime();
+      if (pollTimerId) clearTimeout(pollTimerId);
     };
   }, []);
 

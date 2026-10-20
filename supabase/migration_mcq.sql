@@ -345,4 +345,22 @@ BEGIN
 END;
 $$;
 
+-- 9. ENABLE SUPABASE REALTIME REPLICATION FOR GAME_SETTINGS AND PARTICIPANTS
+-- Enables instant zero-latency WebSocket push updates to 100+ concurrent players without database query storms
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.game_settings;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.participants;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+END $$;
+
+
 

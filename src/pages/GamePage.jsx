@@ -106,21 +106,36 @@ export default function GamePage({
     window.addEventListener('horror_settings_updated', handleSettingsUpdate);
     window.addEventListener('horror_game_reset', handleReset);
 
-    // Periodic poll for game settings
-    const interval = setInterval(async () => {
-      try {
-        const fresh = await horrorApi.getGameSettings();
-        if (fresh && isMounted) {
-          setGameSettings(fresh);
-        }
-      } catch (e) {}
-    }, 5000);
+    // Supabase Realtime subscription for instant zero-polling updates
+    const unsubscribeRealtime = horrorApi.subscribeToGameSettings((fresh) => {
+      if (fresh && isMounted) {
+        setGameSettings(fresh);
+      }
+    });
+
+    // Adaptive fallback poll with jitter (14s to 20s) to avoid query bursts from 100 participants
+    let pollTimerId = null;
+    const schedulePoll = () => {
+      if (!isMounted) return;
+      const jitter = 14000 + Math.floor(Math.random() * 6000);
+      pollTimerId = setTimeout(async () => {
+        try {
+          const fresh = await horrorApi.getGameSettings();
+          if (fresh && isMounted) {
+            setGameSettings(fresh);
+          }
+        } catch (e) {}
+        schedulePoll();
+      }, jitter);
+    };
+    schedulePoll();
 
     return () => {
       isMounted = false;
       window.removeEventListener('horror_settings_updated', handleSettingsUpdate);
       window.removeEventListener('horror_game_reset', handleReset);
-      clearInterval(interval);
+      if (unsubscribeRealtime) unsubscribeRealtime();
+      if (pollTimerId) clearTimeout(pollTimerId);
       clearTimeout(autoAdvanceTimeoutRef.current);
     };
   }, [participant]);
@@ -130,6 +145,19 @@ export default function GamePage({
   const currentRoundNum = currentRoundIndex + 1;
   const totalRounds = songs.length || 30;
   const currentSubmission = currentSong ? submissions[currentSong.id] : null;
+
+  // Background Audio Preloading: Pre-buffer current and next round audio into browser cache
+  useEffect(() => {
+    if (!songs || songs.length === 0) return;
+    const current = songs[currentRoundIndex];
+    if (current?.audio_path) {
+      horrorSoundEngine.preloadAudio(current.audio_path);
+    }
+    const next = songs[currentRoundIndex + 1];
+    if (next?.audio_path) {
+      horrorSoundEngine.preloadAudio(next.audio_path);
+    }
+  }, [currentRoundIndex, songs]);
 
   // 2. Fetch / Restore Round State on Round Change or Refresh
   useEffect(() => {

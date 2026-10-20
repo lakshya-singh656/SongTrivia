@@ -9,12 +9,14 @@ export default function LeaderboardPage({ currentParticipant }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [gameSettings, setGameSettings] = useState({ game_status: 'waiting', answers_revealed: false });
 
-  const fetchStandings = async (showSpinner = false) => {
+  const debounceTimerRef = React.useRef(null);
+
+  const fetchStandings = async (showSpinner = false, forceRefresh = false) => {
     try {
       if (showSpinner) setIsRefreshing(true);
       const [boardData, settingsData] = await Promise.all([
-        horrorApi.getLeaderboard(),
-        horrorApi.getGameSettings()
+        horrorApi.getLeaderboard(forceRefresh),
+        horrorApi.getGameSettings(forceRefresh)
       ]);
       setLeaderboard(boardData || []);
       setGameSettings(settingsData || {});
@@ -27,22 +29,53 @@ export default function LeaderboardPage({ currentParticipant }) {
   };
 
   useEffect(() => {
-    fetchStandings(false);
+    let isMounted = true;
+    fetchStandings(false, true);
 
-    // Auto-refresh periodically every 5 seconds
-    const interval = setInterval(() => {
-      fetchStandings(false);
-    }, 5000);
+    // Debounced refresh helper for high-frequency events
+    const triggerDebouncedFetch = () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        if (isMounted) fetchStandings(false, true);
+      }, 800);
+    };
 
-    // Listen for custom events (local mode)
+    // 1. Supabase Realtime Subscriptions
+    const unsubLeaderboard = horrorApi.subscribeToLeaderboard(() => {
+      triggerDebouncedFetch();
+    });
+
+    const unsubSettings = horrorApi.subscribeToGameSettings((newSettings) => {
+      if (newSettings && isMounted) setGameSettings(newSettings);
+    });
+
+    // 2. Custom local events
     const handleSubmission = () => {
-      fetchStandings(false);
+      triggerDebouncedFetch();
     };
     window.addEventListener('horror_submission_made', handleSubmission);
     window.addEventListener('horror_game_reset', handleSubmission);
 
+    // 3. Fallback poll with random jitter (12s to 18s) to avoid synchronicity spikes
+    let pollTimerId = null;
+    const scheduleNextPoll = () => {
+      if (!isMounted) return;
+      const jitter = 12000 + Math.floor(Math.random() * 6000);
+      pollTimerId = setTimeout(() => {
+        if (isMounted) {
+          fetchStandings(false);
+          scheduleNextPoll();
+        }
+      }, jitter);
+    };
+    scheduleNextPoll();
+
     return () => {
-      clearInterval(interval);
+      isMounted = false;
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (pollTimerId) clearTimeout(pollTimerId);
+      if (unsubLeaderboard) unsubLeaderboard();
+      if (unsubSettings) unsubSettings();
       window.removeEventListener('horror_submission_made', handleSubmission);
       window.removeEventListener('horror_game_reset', handleSubmission);
     };

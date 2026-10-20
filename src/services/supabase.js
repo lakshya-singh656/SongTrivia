@@ -107,10 +107,100 @@ export function initializeLocalStorageIfNeeded() {
 initializeLocalStorageIfNeeded();
 
 // ==========================================================
+// HIGH-CONCURRENCY REALTIME & IN-MEMORY CACHE (100+ PARTICIPANTS)
+// ==========================================================
+
+let cachedSettings = null; // { data, timestamp }
+let cachedSongs = null; // { data, timestamp, answersRevealed }
+let cachedLeaderboard = null; // { data, timestamp }
+
+const CACHE_TTL = {
+  SETTINGS: 3000,    // 3 seconds in-memory TTL
+  SONGS: 15000,      // 15 seconds in-memory TTL
+  LEADERBOARD: 4000  // 4 seconds in-memory TTL
+};
+
+let realtimeChannel = null;
+const settingsListeners = new Set();
+const leaderboardListeners = new Set();
+
+function initRealtimeSync() {
+  if (!isSupabaseConfigured || !supabase || realtimeChannel) return;
+
+  try {
+    realtimeChannel = supabase.channel('horror_trivia_realtime_hub')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'game_settings'
+      }, (payload) => {
+        if (payload.new) {
+          cachedSettings = { data: payload.new, timestamp: Date.now() };
+          setLocalItem(STORAGE_KEYS.SETTINGS, payload.new);
+          settingsListeners.forEach(cb => {
+            try { cb(payload.new); } catch (e) {}
+          });
+          window.dispatchEvent(new CustomEvent('horror_settings_updated', { detail: payload.new }));
+        }
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'participants'
+      }, () => {
+        cachedLeaderboard = null;
+        leaderboardListeners.forEach(cb => {
+          try { cb(); } catch (e) {}
+        });
+        window.dispatchEvent(new CustomEvent('horror_submission_made'));
+      })
+      .on('broadcast', { event: 'game_reset' }, () => {
+        cachedSettings = null;
+        cachedLeaderboard = null;
+        cachedSongs = null;
+        window.dispatchEvent(new CustomEvent('horror_game_reset'));
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.info('Connected to Supabase Realtime Hub (optimized for 100+ participants)');
+        }
+      });
+  } catch (err) {
+    console.warn('Realtime channel initialization warning:', err);
+  }
+}
+
+// Auto-initialize realtime sync if Supabase is active
+if (isSupabaseConfigured) {
+  initRealtimeSync();
+}
+
+// ==========================================================
 // UNIFIED DATA SERVICE APIS
 // ==========================================================
 
 export const horrorApi = {
+  // Realtime Subscriptions for zero-polling instant updates
+  subscribeToGameSettings(callback) {
+    if (typeof callback === 'function') {
+      settingsListeners.add(callback);
+      initRealtimeSync();
+    }
+    return () => {
+      settingsListeners.delete(callback);
+    };
+  },
+
+  subscribeToLeaderboard(callback) {
+    if (typeof callback === 'function') {
+      leaderboardListeners.add(callback);
+      initRealtimeSync();
+    }
+    return () => {
+      leaderboardListeners.delete(callback);
+    };
+  },
+
   // 0. HEALTH & CONNECTION DIAGNOSTICS
   async checkSupabaseHealth() {
     if (!isSupabaseConfigured) {
@@ -168,8 +258,12 @@ export const horrorApi = {
     }
   },
 
-  // 1. GAME SETTINGS
-  async getGameSettings() {
+  // 1. GAME SETTINGS (Cached with 3s TTL to protect against 100-user query storms)
+  async getGameSettings(forceRefresh = false) {
+    if (!forceRefresh && cachedSettings && Date.now() - cachedSettings.timestamp < CACHE_TTL.SETTINGS) {
+      return cachedSettings.data;
+    }
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
@@ -179,6 +273,7 @@ export const horrorApi = {
           .single();
         if (error) throw error;
         if (data) {
+          cachedSettings = { data, timestamp: Date.now() };
           setLocalItem(STORAGE_KEYS.SETTINGS, data);
         }
         return data;
@@ -186,16 +281,19 @@ export const horrorApi = {
         console.warn('Supabase getGameSettings failed, falling back to local:', err);
       }
     }
-    return getLocalItem(STORAGE_KEYS.SETTINGS, {
+    const local = getLocalItem(STORAGE_KEYS.SETTINGS, {
       id: 1,
       game_status: 'waiting',
       current_round: 1,
       total_rounds: 30,
       answers_revealed: false
     });
+    cachedSettings = { data: local, timestamp: Date.now() };
+    return local;
   },
 
   async updateGameSettings(updates) {
+    cachedSettings = null; // Invalidate cache immediately on update
     let updated = null;
     if (isSupabaseConfigured) {
       try {
@@ -229,21 +327,27 @@ export const horrorApi = {
       ...(updated || updates),
       updated_at: new Date().toISOString()
     };
+    cachedSettings = { data: finalSettings, timestamp: Date.now() };
     setLocalItem(STORAGE_KEYS.SETTINGS, finalSettings);
     window.dispatchEvent(new CustomEvent('horror_settings_updated', { detail: finalSettings }));
     return finalSettings;
   },
 
-  // 2. SONGS
-  async getPlayableSongs() {
+  // 2. SONGS (Cached in-memory to prevent repeated 30-row fetches per participant)
+  async getPlayableSongs(forceRefresh = false) {
     // Participants fetch: returns songs with 4 options, strictly withholding correct_option unless answers_revealed is true!
     const settings = await this.getGameSettings();
     const answersRevealed = Boolean(settings?.answers_revealed);
+
+    if (!forceRefresh && cachedSongs && Date.now() - cachedSongs.timestamp < CACHE_TTL.SONGS && cachedSongs.answersRevealed === answersRevealed) {
+      return cachedSongs.data;
+    }
 
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.rpc('get_playable_songs');
         if (!error && Array.isArray(data) && data.length > 0) {
+          cachedSongs = { data, timestamp: Date.now(), answersRevealed };
           return data;
         }
         if (error) {
@@ -261,7 +365,7 @@ export const horrorApi = {
           .order('round_number', { ascending: true });
 
         if (!tableError && Array.isArray(songsTableData) && songsTableData.length > 0) {
-          return songsTableData.map(song => ({
+          const songsList = songsTableData.map(song => ({
             id: song.id,
             round_number: song.round_number,
             title: song.title,
@@ -278,6 +382,8 @@ export const horrorApi = {
             correct_answer: answersRevealed ? (song.correct_answer || song[`option_${(song.correct_option || 'A').toLowerCase()}`]) : null,
             accepted_answers: answersRevealed ? song.accepted_answers : null
           }));
+          cachedSongs = { data: songsList, timestamp: Date.now(), answersRevealed };
+          return songsList;
         }
       } catch (tableErr) {
         console.warn('Direct songs table query failed:', tableErr);
@@ -286,7 +392,7 @@ export const horrorApi = {
 
     // Local engine logic
     const allSongs = getLocalItem(STORAGE_KEYS.SONGS, []);
-    return allSongs.map(song => ({
+    const localSongs = allSongs.map(song => ({
       id: song.id,
       round_number: song.round_number,
       title: song.title,
@@ -304,6 +410,8 @@ export const horrorApi = {
       correct_answer: answersRevealed ? (song.correct_answer || song[`option_${(song.correct_option || 'A').toLowerCase()}`]) : null,
       accepted_answers: answersRevealed ? song.accepted_answers : null
     }));
+    cachedSongs = { data: localSongs, timestamp: Date.now(), answersRevealed };
+    return localSongs;
   },
 
   async getAllAdminSongs() {
@@ -965,12 +1073,19 @@ export const horrorApi = {
     return submissions.filter(s => s.participant_id === participantId);
   },
 
-  // 5. LEADERBOARD
-  async getLeaderboard() {
+  // 5. LEADERBOARD (Cached in-memory with 4s TTL for high concurrency)
+  async getLeaderboard(forceRefresh = false) {
+    if (!forceRefresh && cachedLeaderboard && Date.now() - cachedLeaderboard.timestamp < CACHE_TTL.LEADERBOARD) {
+      return cachedLeaderboard.data;
+    }
+
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.rpc('get_horror_leaderboard');
-        if (!error && data) return data;
+        if (!error && data) {
+          cachedLeaderboard = { data, timestamp: Date.now() };
+          return data;
+        }
 
         // Fallback to direct select
         const { data: rawList, error: listError } = await supabase
@@ -980,7 +1095,9 @@ export const horrorApi = {
           .order('correct_count', { ascending: false })
           .order('completion_time', { ascending: true, nullsFirst: false });
         if (!listError && rawList) {
-          return rawList.map((p, idx) => ({ ...p, rank: idx + 1 }));
+          const mapped = rawList.map((p, idx) => ({ ...p, rank: idx + 1 }));
+          cachedLeaderboard = { data: mapped, timestamp: Date.now() };
+          return mapped;
         }
       } catch (e) {
         console.warn('Supabase getLeaderboard failed, using local:', e);
@@ -1004,10 +1121,12 @@ export const horrorApi = {
       return new Date(a.created_at || 0) - new Date(b.created_at || 0);
     });
 
-    return sorted.map((p, index) => ({
+    const localLeaderboard = sorted.map((p, index) => ({
       ...p,
       rank: index + 1
     }));
+    cachedLeaderboard = { data: localLeaderboard, timestamp: Date.now() };
+    return localLeaderboard;
   },
 
   // 6. ADMIN & AUDIT
@@ -1209,6 +1328,24 @@ export const horrorApi = {
       localStorage.removeItem('horror_participant_session');
     } catch (e) {}
 
+    // Invalidate all high-concurrency in-memory caches
+    cachedSettings = null;
+    cachedSongs = null;
+    cachedLeaderboard = null;
+
+    // Send instant Realtime broadcast to all 100+ connected participant browsers
+    if (realtimeChannel) {
+      try {
+        realtimeChannel.send({
+          type: 'broadcast',
+          event: 'game_reset',
+          payload: { timestamp: Date.now() }
+        });
+      } catch (err) {
+        console.warn('Realtime broadcast game_reset error:', err);
+      }
+    }
+
     const defaultSettings = {
       id: 1,
       game_status: 'waiting',
@@ -1217,6 +1354,7 @@ export const horrorApi = {
       answers_revealed: false,
       updated_at: new Date().toISOString()
     };
+    cachedSettings = { data: defaultSettings, timestamp: Date.now() };
     setLocalItem(STORAGE_KEYS.SETTINGS, defaultSettings);
     window.dispatchEvent(new CustomEvent('horror_settings_updated', { detail: defaultSettings }));
     window.dispatchEvent(new CustomEvent('horror_game_reset'));

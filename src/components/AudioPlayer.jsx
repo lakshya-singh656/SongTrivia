@@ -24,7 +24,16 @@ export default function AudioPlayer({
     let isMounted = true;
     async function probeDuration() {
       if (audioPath && (audioPath.startsWith('http') || audioPath.startsWith('blob:'))) {
-        setIsProbeLoading(true);
+        // Preload audio into memory/HTTP cache immediately
+        horrorSoundEngine.preloadAudio(audioPath);
+
+        // If targetDuration is explicitly known from songs table, use it right away
+        if (targetDuration && targetDuration > 0 && targetDuration !== 8.0) {
+          setActualDuration(targetDuration);
+          setAudioRemaining(Math.ceil(targetDuration));
+          return;
+        }
+
         try {
           const probed = await horrorSoundEngine.getAudioDuration(audioPath, targetDuration || 8.0);
           if (isMounted) {
@@ -33,8 +42,6 @@ export default function AudioPlayer({
           }
         } catch (e) {
           if (isMounted) setActualDuration(targetDuration || 8.0);
-        } finally {
-          if (isMounted) setIsProbeLoading(false);
         }
       } else {
         const synthDur = 7.0; // Procedural synth clips run for 7 seconds
