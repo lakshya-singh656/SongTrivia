@@ -280,7 +280,6 @@ export default function AdminDashboard({ onAdminStateChange }) {
     if (!confirmed) return;
 
     try {
-      setUpdatingStatus(true);
       await horrorApi.resetGame();
       setParticipants([]);
       setSubmissions([]);
@@ -296,8 +295,6 @@ export default function AdminDashboard({ onAdminStateChange }) {
     } catch (e) {
       console.error('Reset lobby failed:', e);
       alert('Reset failed: ' + e.message);
-    } finally {
-      setUpdatingStatus(false);
     }
   };
 
@@ -307,7 +304,6 @@ export default function AdminDashboard({ onAdminStateChange }) {
       return;
     }
     try {
-      setUpdatingStatus(true);
       await horrorApi.resetGame();
       setResetModalOpen(false);
       setResetConfirmText('');
@@ -324,8 +320,6 @@ export default function AdminDashboard({ onAdminStateChange }) {
       showSuccessBanner('Game has been reset. All submissions wiped and status set to waiting.');
     } catch (e) {
       alert('Reset failed: ' + e.message);
-    } finally {
-      setUpdatingStatus(false);
     }
   };
 
