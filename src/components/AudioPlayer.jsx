@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Volume2, Music, AlertCircle, ShieldAlert, CheckCircle2, Lock } from 'lucide-react';
+import { Play, Volume2, Music, CheckCircle2, Lock } from 'lucide-react';
 import { horrorSoundEngine } from '../services/soundGenerator';
 
 export default function AudioPlayer({ 
@@ -132,12 +132,6 @@ export default function AudioPlayer({
       onContextMenu={handleContextMenu}
       className="w-full select-none bg-[#101018]/95 border border-red-950/80 rounded-2xl p-5 shadow-2xl backdrop-blur-md relative overflow-hidden"
     >
-      {/* Anti-cheat watermarking accent */}
-      <div className="absolute top-0 right-0 px-3 py-1 bg-red-950/40 border-b border-l border-red-900/40 rounded-bl-xl text-[10px] font-mono text-zinc-500 uppercase flex items-center gap-1 pointer-events-none">
-        <ShieldAlert className="w-3 h-3 text-red-500" />
-        <span>Strict Single Playback</span>
-      </div>
-
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5">
@@ -145,36 +139,33 @@ export default function AudioPlayer({
             <Music className="w-4 h-4 animate-pulse" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold tracking-wider uppercase text-zinc-200">
-              Audio Snippet {roundNumber ? `#${roundNumber}` : ''}
+            <h4 className="text-sm font-bold tracking-wider uppercase text-zinc-100">
+              Round {roundNumber ? `#${roundNumber}` : ''}
             </h4>
-            <p className="text-xs text-zinc-500">
-              Duration: {actualDuration ? `${actualDuration}s` : 'Probing...'} &bull; Single-Play Only
+            <p className="text-xs text-zinc-400">
+              {actualDuration ? `${actualDuration}s Song Clip` : 'Song Clip'}
             </p>
           </div>
         </div>
 
         {/* Status Badge */}
         <div>
-          {isPlaying ? (
+          {isPlaying && (
             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-950 text-red-400 border border-red-700 shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-              AUDIO PLAYING
+              PLAYING
             </span>
-          ) : hasPlayed ? (
+          )}
+          {hasPlayed && (
             <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-zinc-900 text-zinc-500 border border-zinc-800">
               <Lock className="w-3 h-3 text-zinc-500" />
-              PLAYBACK EXPENDED
-            </span>
-          ) : (
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800">
-              READY TO LISTEN
+              PLAYED
             </span>
           )}
         </div>
       </div>
 
-      {/* Soundwave Visualizer (No seeking or scrubbing allowed) */}
+      {/* Soundwave Visualizer */}
       <div className="h-16 w-full bg-[#08080d] rounded-xl flex items-center justify-center gap-1.5 px-4 mb-4 border border-zinc-900 pointer-events-none overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-r from-red-950/15 via-transparent to-red-950/15 pointer-events-none" />
 
@@ -210,26 +201,22 @@ export default function AudioPlayer({
         <div className="flex justify-between items-center text-xs mt-2 font-mono">
           <span className={`font-semibold ${isPlaying ? 'text-red-400 animate-pulse' : 'text-zinc-500'}`}>
             {isPlaying 
-              ? `Audio remaining: ${audioRemaining}s` 
+              ? `${audioRemaining}s remaining` 
               : hasPlayed 
-              ? 'Audio finished (0s remaining)' 
-              : `Total Clip: ${actualDuration}s`}
-          </span>
-
-          <span className="text-zinc-600">
-            {hasPlayed ? 'No replays permitted' : '1 attempt allowed'}
+              ? 'Finished' 
+              : `${actualDuration}s Clip`}
           </span>
         </div>
       </div>
 
-      {/* Controls Row: Only Single Start Button (No Pause, No Replay, No Scrubbing) */}
-      <div className="flex items-center justify-between pt-1 border-t border-zinc-900">
-        <div className="text-xs text-zinc-500 flex items-center gap-1.5">
+      {/* Controls Row */}
+      <div className="flex items-center justify-between pt-2 border-t border-zinc-900/80">
+        <div className="text-xs text-zinc-400">
           {hasPlayed ? (
-            <span className="text-zinc-500 italic">Clip played. Answer timer activated.</span>
+            <span className="text-zinc-500">Audio finished. Select your answer below.</span>
           ) : (
-            <span className="text-amber-500/90 font-medium">
-              ⚠️ Warning: 10-second timer begins immediately after audio ends!
+            <span className="text-zinc-400">
+              Listen carefully and choose your answer.
             </span>
           )}
         </div>
@@ -242,7 +229,7 @@ export default function AudioPlayer({
               className="px-6 py-2.5 rounded-xl bg-zinc-900/80 text-zinc-500 border border-zinc-800 text-xs font-mono font-bold tracking-wider cursor-not-allowed flex items-center gap-2"
             >
               <Lock className="w-3.5 h-3.5 text-zinc-500" />
-              <span>CLIP EXPENDED</span>
+              <span>AUDIO PLAYED</span>
             </button>
           ) : isPlaying ? (
             <button
@@ -261,7 +248,7 @@ export default function AudioPlayer({
               className="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-extrabold text-xs tracking-wider transition-all shadow-[0_0_20px_rgba(220,38,38,0.6)] hover:shadow-[0_0_30px_rgba(239,68,68,0.8)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border border-red-500 flex items-center gap-2"
             >
               <Play className="w-4 h-4 fill-current ml-0.5" />
-              <span>START AUDIO CLIP</span>
+              <span>PLAY AUDIO</span>
             </button>
           )}
         </div>

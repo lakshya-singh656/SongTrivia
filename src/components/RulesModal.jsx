@@ -6,7 +6,7 @@ export default function RulesModal({ isOpen, onClose }) {
 
   const rules = [
     { num: 1, title: "Survivor Registration", desc: "Register using your real or survivor name before starting the challenge." },
-    { num: 2, title: "Single Playback Only", desc: "Listen carefully to each 5–10 second song snippet. Clips play exactly ONCE. Replays, seeking, and scrubbing are strictly disabled." },
+    { num: 2, title: "Single Playback Only", desc: "Listen carefully to each 5-second song clip. Clips play ONCE without replays." },
     { num: 3, title: "Strict 10-Second Timer", desc: "A 10-second answer countdown begins automatically after audio ends. Submissions after time expires award 0 points." },
     { num: 4, title: "Scoring: +10 Points", desc: "Every correct answer earns 10 points immediately upon server validation." },
     { num: 5, title: "Zero Penalty", desc: "Wrong answers earn 0 points. There is no negative marking." },

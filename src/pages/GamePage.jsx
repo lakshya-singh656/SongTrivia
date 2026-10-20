@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Skull, Trophy, CheckCircle2, XCircle, ArrowRight, Lock, 
-  Sparkles, AlertCircle, Clock, Volume2, ShieldAlert, Timer,
+  Sparkles, AlertCircle, Clock, Volume2, Timer,
   Users, User, RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -572,7 +572,7 @@ export default function GamePage({
             The Gates Are Locked
           </h2>
           <p className="text-xs sm:text-sm text-zinc-300 max-w-md mx-auto leading-relaxed mb-5">
-            Welcome, <span className="text-red-400 font-bold">{participant.name}</span>. The organizer will start the event shortly. All rounds feature strict single-audio playback and a 10-second answer timer!
+            Welcome, <span className="text-red-400 font-bold">{participant.name}</span>. The organizer will start the event shortly. Listen to each song and choose the correct answer before time runs out!
           </p>
 
           {/* Player Quick Info Cards */}
@@ -583,12 +583,12 @@ export default function GamePage({
             </div>
             <div className="w-px h-8 bg-zinc-800" />
             <div>
-              <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Anti-Cheating</p>
-              <p className="text-xs sm:text-sm font-mono font-bold text-red-400">1 Play &bull; 10s Timer</p>
+              <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Format</p>
+              <p className="text-xs sm:text-sm font-mono font-bold text-zinc-200">30 MCQ Rounds</p>
             </div>
             <div className="w-px h-8 bg-zinc-800" />
             <div>
-              <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Max Points</p>
+              <p className="text-[10px] sm:text-xs text-zinc-500 uppercase font-mono">Total Points</p>
               <p className="text-xs sm:text-sm font-mono font-bold text-amber-400">300 PTS</p>
             </div>
           </div>
@@ -845,16 +845,7 @@ export default function GamePage({
           : 'border-red-900/60'
       }`}>
         
-        {/* Anti-cheat banner */}
-        <div className="mb-4 flex items-center justify-between text-[11px] font-mono text-zinc-500 border-b border-zinc-900 pb-2.5">
-          <span className="flex items-center gap-1.5">
-            <ShieldAlert className="w-3.5 h-3.5 text-red-500" />
-            <span>Anti-Cheat Active: Single Playback &bull; Strict Server Timestamps</span>
-          </span>
-          <span className="text-zinc-600 hidden sm:inline">Tab-switch and refresh protected</span>
-        </div>
-
-        {/* Audio Player (Strict Single Playback) */}
+        {/* Audio Player */}
         <div className="mb-6">
           <AudioPlayer
             roundNumber={currentRoundNum}
@@ -868,17 +859,6 @@ export default function GamePage({
             disabled={isLocked || isAnswering}
           />
         </div>
-
-        {/* Cryptic Hint (if available) */}
-        {currentSong?.hint && (
-          <div className="p-3.5 rounded-xl bg-zinc-950/70 border border-zinc-900 mb-6 flex items-start gap-2.5">
-            <span className="text-base">🕯️</span>
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-500 block">Cryptic Hint</span>
-              <p className="text-xs text-zinc-300 italic">{currentSong.hint}</p>
-            </div>
-          </div>
-        )}
 
         {/* 10-Second Answer Timer Banner (Visible when ANSWERING) */}
         {isAnswering && (
@@ -961,8 +941,8 @@ export default function GamePage({
                   </div>
                 ) : (
                   <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono font-semibold bg-zinc-900 border border-zinc-800 text-zinc-300 mb-3">
-                    <ShieldAlert className="w-3.5 h-3.5 text-red-500" />
-                    <span>Response Secured &bull; Results Revealed by Organizer</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Answer Recorded &bull; Results Revealed by Organizer</span>
                   </div>
                 )}
               </div>
@@ -1062,10 +1042,10 @@ export default function GamePage({
           <div className="p-6 rounded-2xl bg-zinc-950/60 border border-zinc-900 text-center">
             <Volume2 className="w-8 h-8 text-zinc-500 mx-auto mb-2 animate-pulse" />
             <h4 className="text-sm font-semibold text-zinc-300 mb-1">
-              Audio Playback Required First
+              Listen to the Song
             </h4>
-            <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed mb-6">
-              Click <span className="text-red-400 font-bold">&ldquo;START AUDIO CLIP&rdquo;</span> above. The clip will play once. Immediately upon completion, all four multiple-choice options unlock for the strict 10-second countdown!
+            <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed mb-6">
+              Click <span className="text-red-400 font-bold">&ldquo;PLAY AUDIO&rdquo;</span> above. Once the song finishes, select your answer from the 4 options below!
             </p>
 
             {/* Preview of 4 options in disabled state */}
