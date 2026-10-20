@@ -1037,34 +1037,49 @@ export default function GamePage({
               </div>
             )}
           </div>
-        ) : roundState === 'ready' ? (
-          /* Ready State: Prompt user to play audio first before choices unlock */
-          <div className="p-6 rounded-2xl bg-zinc-950/60 border border-zinc-900 text-center">
-            <Volume2 className="w-8 h-8 text-zinc-500 mx-auto mb-2 animate-pulse" />
-            <h4 className="text-sm font-semibold text-zinc-300 mb-1">
-              Listen to the Song
-            </h4>
-            <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed mb-6">
-              Click <span className="text-red-400 font-bold">&ldquo;PLAY AUDIO&rdquo;</span> above. Once the song finishes, select your answer from the 4 options below!
-            </p>
+        ) : !isAnswering ? (
+          /* Matted State: Concealed & Blurred Options while Audio Plays or Before Play */
+          <div className="relative overflow-hidden rounded-2xl border border-zinc-900 bg-[#09090f] p-5 sm:p-6 text-center select-none min-h-[220px] flex items-center justify-center">
+            {/* Matted Background Cards (heavily blurred skeleton placeholders) */}
+            <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3 filter blur-md opacity-15 pointer-events-none">
+              {['A', 'B', 'C', 'D'].map(letter => (
+                <div
+                  key={letter}
+                  className="p-4 rounded-xl border border-zinc-800 bg-[#101018] flex items-center gap-3 text-left"
+                >
+                  <span className="w-8 h-8 rounded-lg bg-zinc-800 text-zinc-600 flex items-center justify-center font-cinzel text-xs font-bold">
+                    {letter}
+                  </span>
+                  <div className="h-4 bg-zinc-700/50 rounded w-28" />
+                </div>
+              ))}
+            </div>
 
-            {/* Preview of 4 options in disabled state */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl mx-auto opacity-40 cursor-not-allowed select-none">
-              {['A', 'B', 'C', 'D'].map(letter => {
-                const optKey = `option_${letter.toLowerCase()}`;
-                const text = currentSong?.[optKey] || `Option ${letter}`;
-                return (
-                  <div
-                    key={letter}
-                    className="p-3.5 rounded-xl border border-zinc-900 bg-[#08080c] flex items-center gap-3 text-left"
-                  >
-                    <span className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-500 flex items-center justify-center font-cinzel text-xs font-bold">
-                      {letter}
-                    </span>
-                    <span className="text-xs text-zinc-500 truncate">{text}</span>
-                  </div>
-                );
-              })}
+            {/* Frosted Matte Overlay */}
+            <div className="absolute inset-0 bg-[#08080d]/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-900/90 border border-zinc-800/90 flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(0,0,0,0.8)]">
+                {isAudioPlaying ? (
+                  <Volume2 className="w-6 h-6 text-red-500 animate-pulse" />
+                ) : (
+                  <Lock className="w-5 h-5 text-zinc-500" />
+                )}
+              </div>
+
+              <h4 className="text-sm sm:text-base font-bold uppercase tracking-wider text-zinc-200 mb-1 font-cinzel">
+                {isAudioPlaying ? 'LISTENING TO SONG...' : 'OPTIONS CONCEALED'}
+              </h4>
+
+              <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                {isAudioPlaying ? (
+                  <span className="text-red-400 font-semibold animate-pulse block">
+                    Options will appear the moment the audio finishes!
+                  </span>
+                ) : (
+                  <span>
+                    Press <span className="text-red-400 font-bold">&ldquo;PLAY AUDIO&rdquo;</span> above. The 4 options will unlock immediately after the clip finishes.
+                  </span>
+                )}
+              </p>
             </div>
           </div>
         ) : (
