@@ -630,7 +630,7 @@ AS $$
 DECLARE
   v_revealed BOOLEAN;
 BEGIN
-  SELECT answers_revealed INTO v_revealed FROM public.game_settings WHERE id = 1;
+  SELECT answers_revealed INTO v_revealed FROM public.game_settings WHERE public.game_settings.id = 1;
   
   RETURN QUERY
   SELECT

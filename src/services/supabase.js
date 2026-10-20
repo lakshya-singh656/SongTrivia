@@ -178,6 +178,9 @@ export const horrorApi = {
           .eq('id', 1)
           .single();
         if (error) throw error;
+        if (data) {
+          setLocalItem(STORAGE_KEYS.SETTINGS, data);
+        }
         return data;
       } catch (err) {
         console.warn('Supabase getGameSettings failed, falling back to local:', err);
@@ -240,11 +243,44 @@ export const horrorApi = {
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase.rpc('get_playable_songs');
-        if (!error && data) {
+        if (!error && Array.isArray(data) && data.length > 0) {
           return data;
+        }
+        if (error) {
+          console.warn('Supabase get_playable_songs rpc failed, falling back to direct table query:', error);
         }
       } catch (e) {
         console.warn('Supabase get_playable_songs rpc failed:', e);
+      }
+
+      // Direct Supabase table fallback if RPC fails (guarantees genuine database UUIDs are used)
+      try {
+        const { data: songsTableData, error: tableError } = await supabase
+          .from('songs')
+          .select('*')
+          .order('round_number', { ascending: true });
+
+        if (!tableError && Array.isArray(songsTableData) && songsTableData.length > 0) {
+          return songsTableData.map(song => ({
+            id: song.id,
+            round_number: song.round_number,
+            title: song.title,
+            artist: song.artist,
+            audio_path: song.audio_path,
+            duration_seconds: song.duration_seconds || 8.0,
+            hint: song.hint,
+            synth_motif: song.synth_motif,
+            option_a: song.option_a || '',
+            option_b: song.option_b || '',
+            option_c: song.option_c || '',
+            option_d: song.option_d || '',
+            correct_option: answersRevealed ? song.correct_option : null,
+            correct_answer: answersRevealed ? (song.correct_answer || song[`option_${(song.correct_option || 'A').toLowerCase()}`]) : null,
+            accepted_answers: answersRevealed ? song.accepted_answers : null
+          }));
+        }
+      } catch (tableErr) {
+        console.warn('Direct songs table query failed:', tableErr);
       }
     }
 
@@ -444,11 +480,21 @@ export const horrorApi = {
           p_audio_duration: durationSeconds
         });
         if (error) throw error;
-        if (data && data.success === false) {
-          throw new Error(data.error || 'Playback request rejected');
+        if (data) {
+          if (data.success === false) {
+            throw new Error(data.error || 'Playback request rejected');
+          }
+          return data;
         }
-        return data;
       } catch (err) {
+        // If Supabase returned a business rule error or validation error, re-throw it!
+        if (err.message && (
+          err.message.includes('Playback is only allowed') ||
+          err.message.includes('Audio playback already initiated') ||
+          err.message.includes('Song not found')
+        )) {
+          throw err;
+        }
         console.warn('Supabase start_round_playback failed, using local engine:', err);
       }
     }
@@ -678,11 +724,20 @@ export const horrorApi = {
         });
 
         if (error) throw error;
-        if (data && data.success === false) {
-          throw new Error(data.error || 'Submission failed');
+        if (data) {
+          if (data.success === false) {
+            throw new Error(data.error || 'Submission failed');
+          }
+          return data;
         }
-        return data;
       } catch (err) {
+        if (err.message && (
+          err.message.includes('Answers can only be submitted') ||
+          err.message.includes('already submitted') ||
+          err.message.includes('Invalid option')
+        )) {
+          throw err;
+        }
         console.warn('Supabase submit_song_answer failed, executing local fallback:', err);
       }
     }

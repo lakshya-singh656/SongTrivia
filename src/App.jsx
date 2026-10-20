@@ -69,10 +69,21 @@ export default function App() {
     };
     window.addEventListener('horror_settings_updated', handleSettingsUpdate);
 
+    // Periodic poll for game settings so Navbar and entire app stay in sync with remote database
+    const settingsPollInterval = setInterval(async () => {
+      try {
+        const fresh = await horrorApi.getGameSettings();
+        if (fresh) {
+          setGameSettings(fresh);
+        }
+      } catch (e) {}
+    }, 4000);
+
     return () => {
       window.removeEventListener('popstate', handleLocationChange);
       window.removeEventListener('hashchange', handleLocationChange);
       window.removeEventListener('horror_settings_updated', handleSettingsUpdate);
+      clearInterval(settingsPollInterval);
     };
   }, []);
 
