@@ -11,10 +11,10 @@ export default function AudioPlayer({
   onStartPlayback,
   onAudioCompleted,
   disabled = false,
-  targetDuration = 8
+  targetDuration = 5
 }) {
-  const [actualDuration, setActualDuration] = useState(targetDuration || 8);
-  const [audioRemaining, setAudioRemaining] = useState(targetDuration || 8);
+  const [actualDuration, setActualDuration] = useState(targetDuration || 5);
+  const [audioRemaining, setAudioRemaining] = useState(targetDuration || 5);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [isProbeLoading, setIsProbeLoading] = useState(false);
   const audioControllerRef = useRef(null);
@@ -28,25 +28,25 @@ export default function AudioPlayer({
         horrorSoundEngine.preloadAudio(audioPath);
 
         // If targetDuration is explicitly known from songs table, use it right away
-        if (targetDuration && targetDuration > 0 && targetDuration !== 8.0) {
+        if (targetDuration && targetDuration > 0) {
           setActualDuration(targetDuration);
           setAudioRemaining(Math.ceil(targetDuration));
           return;
         }
 
         try {
-          const probed = await horrorSoundEngine.getAudioDuration(audioPath, targetDuration || 8.0);
+          const probed = await horrorSoundEngine.getAudioDuration(audioPath, targetDuration || 5.0);
           if (isMounted) {
             setActualDuration(probed);
             setAudioRemaining(Math.ceil(probed));
           }
         } catch (e) {
-          if (isMounted) setActualDuration(targetDuration || 8.0);
+          if (isMounted) setActualDuration(targetDuration || 5.0);
         }
       } else {
-        const synthDur = 7.0; // Procedural synth clips run for 7 seconds
+        const synthDur = 5.0; // Procedural synth clips run for 5 seconds
         setActualDuration(synthDur);
-        setAudioRemaining(7);
+        setAudioRemaining(5);
       }
     }
     probeDuration();

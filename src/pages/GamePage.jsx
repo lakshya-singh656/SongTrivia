@@ -716,7 +716,7 @@ export default function GamePage({
             roundNumber={currentRoundNum}
             audioPath={currentSong?.audio_path}
             synthMotif={currentSong?.synth_motif}
-            targetDuration={currentSong?.duration_seconds || 8}
+            targetDuration={currentSong?.duration_seconds || 5}
             hasPlayed={hasAudioPlayed}
             isPlaying={isAudioPlaying}
             onStartPlayback={handleStartPlayback}

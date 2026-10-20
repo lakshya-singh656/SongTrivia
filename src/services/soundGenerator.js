@@ -47,7 +47,7 @@ class HorrorSoundEngine {
   }
 
   // Probe audio duration from metadata or return cached/configured duration
-  async getAudioDuration(url, fallbackDuration = 8.0) {
+  async getAudioDuration(url, fallbackDuration = 5.0) {
     if (!url || (!url.startsWith('http') && !url.startsWith('blob:'))) {
       return fallbackDuration;
     }
@@ -55,7 +55,7 @@ class HorrorSoundEngine {
       return this.durationCache.get(url);
     }
     // If fallback is already a specific valid duration (e.g. from songs table), use it to avoid blocking
-    if (fallbackDuration && fallbackDuration > 0 && fallbackDuration !== 8.0) {
+    if (fallbackDuration && fallbackDuration > 0 && fallbackDuration !== 5.0) {
       this.durationCache.set(url, fallbackDuration);
       return fallbackDuration;
     }
@@ -90,7 +90,7 @@ class HorrorSoundEngine {
   }
 
   // Play a custom uploaded audio URL (MP3, WAV, M4A, etc.) with strict single-play enforcement
-  playAudioUrl(url, targetSeconds = 10, onProgress = null, onEnded = null) {
+  playAudioUrl(url, targetSeconds = 5, onProgress = null, onEnded = null) {
     this.stopAudio();
     const audio = new Audio();
     audio.src = url;
@@ -178,7 +178,7 @@ class HorrorSoundEngine {
   }
 
   // Synthesize procedural horror motifs if no MP3 file uploaded yet
-  playProceduralMotif(motifKey = 'halloween', durationSec = 7, onProgress = null, onEnded = null) {
+  playProceduralMotif(motifKey = 'halloween', durationSec = 5, onProgress = null, onEnded = null) {
     this.stopAudio();
     const ctx = this.getAudioContext();
     if (!ctx) return;

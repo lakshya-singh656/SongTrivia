@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.songs (
   round_number INT UNIQUE NOT NULL CHECK (round_number >= 1 AND round_number <= 30),
   title TEXT NOT NULL,
   audio_path TEXT,
-  duration_seconds NUMERIC DEFAULT 8.0 CHECK (duration_seconds >= 1.0 AND duration_seconds <= 30.0),
+  duration_seconds NUMERIC DEFAULT 5.0 CHECK (duration_seconds >= 1.0 AND duration_seconds <= 30.0),
   option_a TEXT NOT NULL DEFAULT '',
   option_b TEXT NOT NULL DEFAULT '',
   option_c TEXT NOT NULL DEFAULT '',
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS public.round_sessions (
   song_id UUID NOT NULL REFERENCES public.songs(id) ON DELETE CASCADE,
   round_number INT NOT NULL,
   state TEXT NOT NULL DEFAULT 'ready' CHECK (state IN ('ready', 'audio_playing', 'answering', 'submitted', 'time_expired')),
-  audio_duration_seconds NUMERIC NOT NULL DEFAULT 8.0,
+  audio_duration_seconds NUMERIC NOT NULL DEFAULT 5.0,
   playback_started_at TIMESTAMP WITH TIME ZONE,
   playback_completed_at TIMESTAMP WITH TIME ZONE,
   answer_deadline TIMESTAMP WITH TIME ZONE,
@@ -192,7 +192,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.start_round_playback(
   p_participant_id UUID,
   p_song_id UUID,
-  p_audio_duration NUMERIC DEFAULT 8.0
+  p_audio_duration NUMERIC DEFAULT 5.0
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -240,7 +240,7 @@ BEGIN
 
   -- 4. Calculate duration & strict deadline
   -- Duration between 3s and 30s
-  v_duration := LEAST(GREATEST(COALESCE(p_audio_duration, 8.0), 3.0), 30.0);
+  v_duration := LEAST(GREATEST(COALESCE(p_audio_duration, 5.0), 3.0), 30.0);
   -- Strict Answer deadline = Playback Start + Audio Duration + 10 seconds
   v_deadline := v_now + (v_duration * INTERVAL '1 second') + INTERVAL '10 seconds';
 
@@ -637,7 +637,7 @@ BEGIN
     s.id,
     s.round_number,
     s.audio_path,
-    COALESCE(s.duration_seconds, 8.0) AS duration_seconds,
+    COALESCE(s.duration_seconds, 5.0) AS duration_seconds,
     s.hint,
     s.option_a,
     s.option_b,

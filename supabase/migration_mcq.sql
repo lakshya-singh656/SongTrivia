@@ -44,7 +44,7 @@ BEGIN
     s.id,
     s.round_number,
     s.audio_path,
-    COALESCE(s.duration_seconds, 8.0) AS duration_seconds,
+    COALESCE(s.duration_seconds, 5.0) AS duration_seconds,
     s.hint,
     s.option_a,
     s.option_b,
@@ -322,7 +322,7 @@ BEGIN
     option_a, option_b, option_c, option_d,
     correct_option, correct_answer, accepted_answers, hint, synth_motif
   ) VALUES (
-    p_round_number, p_title, p_audio_path, COALESCE(p_duration_seconds, 8.0),
+    p_round_number, p_title, p_audio_path, COALESCE(p_duration_seconds, 5.0),
     p_option_a, p_option_b, p_option_c, p_option_d,
     p_correct_option, p_correct_answer, ARRAY[p_correct_answer], p_hint, p_synth_motif
   )
@@ -361,6 +361,12 @@ BEGIN
     NULL;
   END;
 END $$;
+
+-- 10. UPDATE ALL SONGS TO 5 SECONDS DURATION
+UPDATE public.songs
+SET duration_seconds = 5.0
+WHERE duration_seconds = 8.0 OR duration_seconds IS NULL;
+
 
 
 

@@ -60,7 +60,7 @@ export function initializeLocalStorageIfNeeded() {
       title: song.title,
       artist: song.artist,
       audio_path: song.audio_path || '',
-      duration_seconds: song.duration_seconds || 8.0,
+      duration_seconds: song.duration_seconds || 5.0,
       option_a: song.option_a,
       option_b: song.option_b,
       option_c: song.option_c,
@@ -371,7 +371,7 @@ export const horrorApi = {
             title: song.title,
             artist: song.artist,
             audio_path: song.audio_path,
-            duration_seconds: song.duration_seconds || 8.0,
+            duration_seconds: song.duration_seconds || 5.0,
             hint: song.hint,
             synth_motif: song.synth_motif,
             option_a: song.option_a || '',
@@ -398,7 +398,7 @@ export const horrorApi = {
       title: song.title,
       artist: song.artist,
       audio_path: song.audio_path,
-      duration_seconds: song.duration_seconds || 8.0,
+      duration_seconds: song.duration_seconds || 5.0,
       hint: song.hint,
       synth_motif: song.synth_motif,
       option_a: song.option_a || '',
@@ -464,7 +464,7 @@ export const horrorApi = {
       round_number: songData.round_number,
       title: songData.title || `Round ${songData.round_number}`,
       audio_path: songData.audio_path || '',
-      duration_seconds: Number(songData.duration_seconds) || 8.0,
+      duration_seconds: Number(songData.duration_seconds) || 5.0,
       option_a: optionA,
       option_b: optionB,
       option_c: optionC,
@@ -608,7 +608,7 @@ export const horrorApi = {
   },
 
   // 4. ROUND SESSIONS & STRICT ANTI-CHEATING CONTROLS
-  async startRoundPlayback(participantId, songId, durationSeconds = 8.0) {
+  async startRoundPlayback(participantId, songId, durationSeconds = 5.0) {
     if (!participantId || !songId) {
       throw new Error('Participant ID and Song ID are required.');
     }
@@ -654,7 +654,7 @@ export const horrorApi = {
     let session = sessions.find(s => s.participant_id === participantId && s.song_id === songId);
 
     const now = new Date();
-    const duration = Math.min(30, Math.max(3, Number(durationSeconds) || 8.0));
+    const duration = Math.min(30, Math.max(3, Number(durationSeconds) || 5.0));
     const deadline = new Date(now.getTime() + (duration * 1000) + 10000);
 
     if (session) {
@@ -796,7 +796,7 @@ export const horrorApi = {
 
     // Check if audio has finished playing based on elapsed time
     const startedAt = new Date(session.playback_started_at || 0).getTime();
-    const audioDurationMs = (session.audio_duration_seconds || 8.0) * 1000;
+    const audioDurationMs = (session.audio_duration_seconds || 5.0) * 1000;
 
     if (session.state === 'audio_playing' && now.getTime() >= startedAt + audioDurationMs) {
       session.state = 'answering';
