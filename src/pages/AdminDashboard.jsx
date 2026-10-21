@@ -302,18 +302,18 @@ export default function AdminDashboard({ onAdminStateChange }) {
   const handleShuffleSongs = async () => {
     const targetRounds = Number(gameSettings.total_rounds) || 30;
     const confirmed = window.confirm(
-      `🔀 SHUFFLE QUESTIONS & OPTIONS?\n\nThis will randomly reorder questions and shuffle the multiple-choice options (A, B, C, D) for each question.\n\nYour active event will use the first ${targetRounds} shuffled questions.\n\nAll connected survivors will instantly receive the newly shuffled questions.\n\nDo you want to proceed?`
+      `🔀 SHUFFLE ACTIVE ${targetRounds} QUESTIONS & OPTIONS?\n\nThis will randomly reorder only the active ${targetRounds} questions and shuffle their multiple-choice options (A, B, C, D).\n\nOnly the ${targetRounds} active questions will be shuffled. Reserve questions will remain untouched.\n\nAll connected survivors will instantly receive the newly shuffled questions.\n\nDo you want to proceed?`
     );
     if (!confirmed) return;
 
     try {
       setIsShuffling(true);
-      const shuffled = await horrorApi.shuffleSongs();
+      const shuffled = await horrorApi.shuffleSongs(targetRounds);
       if (Array.isArray(shuffled) && shuffled.length > 0) {
         setSongs(shuffled);
       }
       await loadAdminData();
-      showSuccessBanner(`🔀 All questions and multiple-choice options shuffled! First ${targetRounds} questions are active.`);
+      showSuccessBanner(`🔀 Active ${targetRounds} questions and multiple-choice options shuffled!`);
     } catch (err) {
       console.error("Shuffle failed:", err);
       alert("Shuffle failed: " + (err.message || 'Unknown error'));
@@ -757,6 +757,7 @@ export default function AdminDashboard({ onAdminStateChange }) {
   const totalCorrect = submissions.filter(s => s.is_correct).length;
   const accuracyPct = totalAnswers > 0 ? Math.round((totalCorrect / totalAnswers) * 100) : 0;
   const roundsWithAudio = songs.filter(s => s.audio_path || s.synth_motif).length;
+  const targetRounds = Number(gameSettings.total_rounds) || 30;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -900,10 +901,10 @@ export default function AdminDashboard({ onAdminStateChange }) {
               onClick={handleShuffleSongs}
               disabled={isShuffling}
               className="px-4 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-200 hover:text-white border border-purple-700/80 text-xs font-bold flex items-center gap-2 cursor-pointer transition-all shadow-[0_0_15px_rgba(168,85,247,0.35)] disabled:opacity-50"
-              title="Randomize question sequence across rounds 1-30 and shuffle choices A, B, C, D"
+              title={`Randomize question sequence across the active ${targetRounds} questions and shuffle choices A, B, C, D`}
             >
               <Shuffle className={`w-3.5 h-3.5 text-purple-400 ${isShuffling ? 'animate-spin' : ''}`} />
-              <span>{isShuffling ? 'SHUFFLING...' : 'SHUFFLE QUESTIONS'}</span>
+              <span>{isShuffling ? 'SHUFFLING...' : `SHUFFLE (${targetRounds} QUES)`}</span>
             </button>
 
             <button
@@ -1078,10 +1079,10 @@ export default function AdminDashboard({ onAdminStateChange }) {
                 onClick={handleShuffleSongs}
                 disabled={isShuffling}
                 className="px-4 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-200 hover:text-white border border-purple-700/80 text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md transition-all disabled:opacity-50"
-                title="Randomize question sequence across rounds 1-30 and shuffle choices A, B, C, D"
+                title={`Randomize question sequence across the active ${targetRounds} questions and shuffle choices A, B, C, D`}
               >
                 <Shuffle className={`w-3.5 h-3.5 text-purple-400 ${isShuffling ? 'animate-spin' : ''}`} />
-                <span>{isShuffling ? 'Shuffling...' : 'Shuffle Questions & Options'}</span>
+                <span>{isShuffling ? 'Shuffling...' : `Shuffle Active (${targetRounds}) Questions & Options`}</span>
               </button>
 
               <button

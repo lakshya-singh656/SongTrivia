@@ -663,12 +663,42 @@ export const horrorApi = {
     return updatedSong;
   },
 
-  // 2b. SHUFFLE SONGS & OPTIONS (Randomize rounds 1-30 and multiple-choice options A, B, C, D)
-  async shuffleSongs() {
+  // 2b. SHUFFLE SONGS & OPTIONS (Randomize only active rounds 1-targetRounds and multiple-choice options A, B, C, D)
+  async shuffleSongs(roundLimit) {
+    let targetRounds = Number(roundLimit);
+    if (!targetRounds || isNaN(targetRounds) || targetRounds <= 0) {
+      try {
+        const settings = await this.getGameSettings();
+        targetRounds = Number(settings?.total_rounds) || 30;
+      } catch (e) {
+        targetRounds = 30;
+      }
+    }
+    targetRounds = Math.min(Math.max(targetRounds, 1), 30);
+
     // 1. Fetch current songs or fallback to default horror songs
     let existingSongs = await this.getAllAdminSongs();
-    if (!existingSongs || existingSongs.length < 30) {
+    if (!existingSongs || existingSongs.length === 0) {
       existingSongs = [...DEFAULT_HORROR_SONGS];
+    }
+
+    // Build a map of existing songs by round_number
+    const songMap = new Map();
+    existingSongs.forEach(s => {
+      if (s && s.round_number) {
+        songMap.set(Number(s.round_number), s);
+      }
+    });
+
+    // Ensure full 30 rounds exist, preserving any existing customized song at each round
+    const fullSongsList = [];
+    for (let r = 1; r <= 30; r++) {
+      if (songMap.has(r)) {
+        fullSongsList.push({ ...songMap.get(r), round_number: r });
+      } else {
+        const defaultSong = DEFAULT_HORROR_SONGS.find(d => d.round_number === r) || DEFAULT_HORROR_SONGS[r - 1];
+        fullSongsList.push({ ...defaultSong, round_number: r });
+      }
     }
 
     // Fisher-Yates array shuffler
@@ -681,14 +711,18 @@ export const horrorApi = {
       return arr;
     };
 
-    // 2. Shuffle question order (rounds 1-30 randomized)
-    const shuffledQuestionOrder = shuffleArray(existingSongs);
+    // Separate active songs (rounds 1 to targetRounds) and reserve songs (rounds targetRounds + 1 to 30)
+    const activeSongs = fullSongsList.filter(s => s.round_number <= targetRounds);
+    const reserveSongs = fullSongsList.filter(s => s.round_number > targetRounds);
 
-    // 3. For each question, shuffle its 4 options (A, B, C, D) and recalculate the correct_option pointer
+    // 2. Shuffle ONLY the active questions amongst themselves
+    const shuffledActiveQuestions = shuffleArray(activeSongs);
+
+    // 3. For each active question, assign its new round (1..targetRounds), shuffle its 4 options (A, B, C, D) and recalculate the correct_option pointer
     const letterKeys = ['A', 'B', 'C', 'D'];
     const cleanStr = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-    const shuffledSongs = shuffledQuestionOrder.map((song, index) => {
+    const processedActiveSongs = shuffledActiveQuestions.map((song, index) => {
       const roundNum = index + 1;
       
       // Determine what the current correct answer text is
@@ -713,6 +747,7 @@ export const horrorApi = {
       const newCorrAnswer = shuffledOpts[safeCorrIndex];
 
       return {
+        ...song,
         id: song.id || `song-${roundNum}`,
         round_number: roundNum,
         title: song.title || `Round ${roundNum}`,
@@ -732,10 +767,15 @@ export const horrorApi = {
       };
     });
 
+    // The combined list of all 30 songs (shuffled active songs in rounds 1..targetRounds + untouched reserve songs in rounds targetRounds+1..30)
+    const allFinalSongs = [...processedActiveSongs, ...reserveSongs].sort(
+      (a, b) => a.round_number - b.round_number
+    );
+
     // 4. Update in Supabase (if configured)
     if (isSupabaseConfigured) {
       try {
-        const rowsToUpsert = shuffledSongs.map(s => ({
+        const rowsToUpsert = processedActiveSongs.map(s => ({
           round_number: s.round_number,
           title: s.title,
           audio_path: s.audio_path || '',
@@ -757,16 +797,20 @@ export const horrorApi = {
 
         if (upsertErr) {
           console.warn('Batch upsert on songs failed, saving sequentially:', upsertErr);
-          for (const s of shuffledSongs) {
+          for (const s of processedActiveSongs) {
             await this.saveSong(s);
           }
         } else if (Array.isArray(upsertData) && upsertData.length > 0) {
-          setLocalItem(STORAGE_KEYS.SONGS, upsertData);
+          const merged = allFinalSongs.map(s => {
+            const up = upsertData.find(u => u.round_number === s.round_number);
+            return up ? { ...s, ...up } : s;
+          });
+          setLocalItem(STORAGE_KEYS.SONGS, merged);
           cachedSongs = null;
         }
       } catch (err) {
         console.warn('Supabase shuffle save failed:', err);
-        for (const s of shuffledSongs) {
+        for (const s of processedActiveSongs) {
           try {
             await this.saveSong(s);
           } catch (e) {}
@@ -775,7 +819,7 @@ export const horrorApi = {
     }
 
     // 5. Update Local Storage
-    setLocalItem(STORAGE_KEYS.SONGS, shuffledSongs);
+    setLocalItem(STORAGE_KEYS.SONGS, allFinalSongs);
 
     // 6. Invalidate caches
     cachedSongs = null;
@@ -786,15 +830,15 @@ export const horrorApi = {
         realtimeChannel.send({
           type: 'broadcast',
           event: 'songs_shuffled',
-          payload: { timestamp: Date.now() }
+          payload: { timestamp: Date.now(), total_rounds: targetRounds }
         });
       } catch (e) {
         console.warn('Realtime broadcast songs_shuffled error:', e);
       }
     }
 
-    window.dispatchEvent(new CustomEvent('horror_songs_shuffled'));
-    return shuffledSongs;
+    window.dispatchEvent(new CustomEvent('horror_songs_shuffled', { detail: { total_rounds: targetRounds } }));
+    return allFinalSongs;
   },
 
   // 3. PARTICIPANTS
