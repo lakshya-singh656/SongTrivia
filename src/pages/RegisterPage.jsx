@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Skull, User, ArrowRight, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
 import { horrorApi } from '../services/supabase';
+import { horrorSoundEngine } from '../services/soundGenerator';
 
 export default function RegisterPage({ onRegistered, gameSettings }) {
   const totalRounds = Number(gameSettings?.total_rounds) || 30;
@@ -10,6 +11,7 @@ export default function RegisterPage({ onRegistered, gameSettings }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    horrorSoundEngine.unlock();
     const cleanName = name.trim();
     if (!cleanName || cleanName.length < 2) {
       setError('Please provide a survivor name with at least 2 characters.');

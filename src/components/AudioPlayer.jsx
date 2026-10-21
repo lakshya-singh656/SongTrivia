@@ -17,10 +17,8 @@ export default function AudioPlayer({
   const [audioRemaining, setAudioRemaining] = useState(targetDuration || 3);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [isPreparing, setIsPreparing] = useState(false);
-  const [isAutoplayBlocked, setIsAutoplayBlocked] = useState(false);
   const audioControllerRef = useRef(null);
   const autoPlayTimerRef = useRef(null);
-  const blockedAudioElementRef = useRef(null);
 
   // Probe audio duration from file metadata on mount or audioPath change
   useEffect(() => {
@@ -68,19 +66,6 @@ export default function AudioPlayer({
     horrorSoundEngine.stopAudio();
   };
 
-  // Listen for browser autoplay block events
-  useEffect(() => {
-    const handleAutoplayBlocked = (e) => {
-      blockedAudioElementRef.current = e?.detail?.audio || null;
-      setIsAutoplayBlocked(true);
-    };
-
-    window.addEventListener('horror_autoplay_blocked', handleAutoplayBlocked);
-    return () => {
-      window.removeEventListener('horror_autoplay_blocked', handleAutoplayBlocked);
-    };
-  }, []);
-
   const handleStartPlay = async () => {
     // If already played, disabled, or currently playing: strictly reject
     if (hasPlayed || isPlaying || disabled) return;
@@ -96,7 +81,6 @@ export default function AudioPlayer({
 
       setAudioRemaining(Math.ceil(actualDuration));
       setPlaybackProgress(0);
-      setIsAutoplayBlocked(false);
 
       const onProgress = (stats) => {
         setPlaybackProgress(stats.progress || 0);
@@ -135,7 +119,7 @@ export default function AudioPlayer({
     }
   };
 
-  // Auto-play after 2 seconds without any timer shown
+  // Auto-play after 2 seconds without any manual button required
   useEffect(() => {
     // If already played, playing, or disabled: do not schedule auto-play
     if (hasPlayed || isPlaying || disabled) {
@@ -156,20 +140,6 @@ export default function AudioPlayer({
       clearTimeout(autoPlayTimerRef.current);
     };
   }, [roundNumber, hasPlayed, isPlaying, disabled, audioPath, actualDuration]);
-
-  // Handle browser gesture unlock if autoplay was blocked
-  const handleAutoplayUnlock = () => {
-    setIsAutoplayBlocked(false);
-    if (blockedAudioElementRef.current) {
-      try {
-        blockedAudioElementRef.current.play();
-      } catch (e) {
-        handleStartPlay();
-      }
-    } else {
-      handleStartPlay();
-    }
-  };
 
   // Prevent right-click context menu and inspect on player
   const handleContextMenu = (e) => {
@@ -311,15 +281,7 @@ export default function AudioPlayer({
         </div>
 
         <div>
-          {isAutoplayBlocked ? (
-            <button
-              type="button"
-              onClick={handleAutoplayUnlock}
-              className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs tracking-wide shadow-[0_0_20px_rgba(220,38,38,0.7)] animate-pulse cursor-pointer border border-red-500"
-            >
-              TAP TO UNMUTE AUDIO
-            </button>
-          ) : isPlaying ? (
+          {isPlaying ? (
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-950/60 border border-red-800/60 text-red-400 font-mono text-xs font-semibold shadow-[0_0_10px_rgba(220,38,38,0.3)]">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
               <span>CLIP PLAYING</span>

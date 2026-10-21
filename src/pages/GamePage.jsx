@@ -516,6 +516,7 @@ export default function GamePage({
   };
 
   const handleNextRound = () => {
+    horrorSoundEngine.unlock();
     setIsAutoAdvancing(false);
     clearTimeout(autoAdvanceTimeoutRef.current);
     setSubmissionFeedback(null);

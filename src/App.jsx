@@ -9,6 +9,7 @@ import GamePage from './pages/GamePage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import AdminDashboard from './pages/AdminDashboard';
 import { horrorApi } from './services/supabase';
+import { horrorSoundEngine } from './services/soundGenerator';
 
 export default function App() {
   // Determine initial view based on URL path or hash
@@ -167,6 +168,7 @@ export default function App() {
   };
 
   const handleParticipantRegistered = (newParticipant) => {
+    horrorSoundEngine.unlock();
     setParticipant(newParticipant);
     handleSetCurrentView('game');
   };
@@ -191,6 +193,7 @@ export default function App() {
           {currentView === 'landing' && (
             <LandingPage
               onEnterGame={() => {
+                horrorSoundEngine.unlock();
                 if (participant) {
                   handleSetCurrentView('game');
                 } else {

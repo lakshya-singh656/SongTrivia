@@ -3,46 +3,143 @@
 class HorrorSoundEngine {
   constructor() {
     this.audioCtx = null;
+    this.isUnlocked = false;
+    this.sharedAudioElement = null;
+    this.currentAudioElement = null;
+    this.currentBufferSource = null;
     this.ambientNodes = null;
     this.isAmbientPlaying = false;
-    this.currentAudioElement = null;
+    this.isPlayingAudio = false;
     this.activeSynthTimeouts = [];
     this.durationCache = new Map();
     this.preloadCache = new Map();
+    this.audioBufferCache = new Map();
+    this.bufferFetchPromises = new Map();
+    this.pendingAutoPlayRecovery = null;
   }
 
   getAudioContext() {
-    if (!this.audioCtx) {
+    if (!this.audioCtx && typeof window !== 'undefined') {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (AudioContext) {
         this.audioCtx = new AudioContext();
       }
     }
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
+      this.audioCtx.resume().catch(() => {});
     }
     return this.audioCtx;
   }
 
-  // Preload an audio clip into browser HTTP and memory cache for smooth playback
-  preloadAudio(url) {
-    if (!url || (!url.startsWith('http') && !url.startsWith('blob:'))) return;
-    if (this.preloadCache.has(url)) return;
-
-    try {
+  getSharedAudioElement() {
+    if (!this.sharedAudioElement && typeof window !== 'undefined') {
       const audio = new Audio();
       audio.preload = 'auto';
-      audio.src = url;
-      // Keep reference to trigger browser buffering
-      this.preloadCache.set(url, audio);
-      // Clean up after 5 minutes if not used
-      setTimeout(() => {
-        if (this.preloadCache.has(url)) {
-          this.preloadCache.delete(url);
+      audio.controls = false;
+      audio.crossOrigin = 'anonymous';
+      audio.setAttribute('playsinline', 'true');
+      audio.setAttribute('webkit-playsinline', 'true');
+      this.sharedAudioElement = audio;
+    }
+    return this.sharedAudioElement;
+  }
+
+  // Universal gesture unlock: activates Web Audio context and primes shared Audio element
+  unlock() {
+    // 1. Resume and prime Web Audio API
+    try {
+      const ctx = this.getAudioContext();
+      if (ctx) {
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
         }
-      }, 300000);
-    } catch (e) {
-      console.warn('Audio preload silent error:', e);
+        // Play 1 silent sample to warm up Web Audio engine
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+      }
+    } catch (e) {}
+
+    // 2. Warm up shared HTMLAudioElement with silent sound
+    try {
+      const audio = this.getSharedAudioElement();
+      if (audio && audio.paused && !this.isPlayingAudio) {
+        if (!audio.src || audio.src.startsWith('data:')) {
+          audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+          const p = audio.play();
+          if (p) {
+            p.then(() => {
+              try { audio.pause(); } catch (e) {}
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (e) {}
+
+    this.isUnlocked = true;
+
+    // 3. Execute any pending auto-play recovery waiting for a touch
+    if (this.pendingAutoPlayRecovery) {
+      const rec = this.pendingAutoPlayRecovery;
+      this.pendingAutoPlayRecovery = null;
+      try { rec(); } catch (e) {}
+    }
+  }
+
+  // Preload an audio clip into memory (Web Audio buffer + browser cache) for instant autoplay
+  preloadAudio(url) {
+    if (!url || (!url.startsWith('http') && !url.startsWith('blob:'))) return;
+
+    // 1. Preload via Web Audio API decodeAudioData (immune to mobile autoplay blocks)
+    if (!this.audioBufferCache.has(url) && !this.bufferFetchPromises.has(url)) {
+      const p = (async () => {
+        try {
+          const res = await fetch(url, { mode: 'cors' });
+          if (!res.ok) return null;
+          const arrayBuffer = await res.arrayBuffer();
+          const ctx = this.getAudioContext();
+          if (!ctx) return null;
+
+          const decoded = await new Promise((resolve, reject) => {
+            ctx.decodeAudioData(arrayBuffer, resolve, reject);
+          });
+
+          if (decoded) {
+            this.audioBufferCache.set(url, decoded);
+            if (decoded.duration && !this.durationCache.has(url)) {
+              this.durationCache.set(url, Math.round(decoded.duration * 10) / 10);
+            }
+            return decoded;
+          }
+        } catch (e) {
+          // If CORS or decode fails, HTMLAudioElement will be used
+          return null;
+        }
+        return null;
+      })();
+
+      this.bufferFetchPromises.set(url, p);
+    }
+
+    // 2. Preload into HTMLAudioElement cache as backup
+    if (!this.preloadCache.has(url)) {
+      try {
+        const audio = new Audio();
+        audio.preload = 'auto';
+        audio.crossOrigin = 'anonymous';
+        audio.setAttribute('playsinline', 'true');
+        audio.setAttribute('webkit-playsinline', 'true');
+        audio.src = url;
+        this.preloadCache.set(url, audio);
+
+        setTimeout(() => {
+          if (this.preloadCache.has(url)) {
+            this.preloadCache.delete(url);
+          }
+        }, 300000);
+      } catch (e) {}
     }
   }
 
@@ -54,7 +151,11 @@ class HorrorSoundEngine {
     if (this.durationCache.has(url)) {
       return this.durationCache.get(url);
     }
-    // If fallback is already a specific valid duration (e.g. from songs table), use it to avoid blocking
+    if (this.audioBufferCache.has(url)) {
+      const dur = Math.round(this.audioBufferCache.get(url).duration * 10) / 10;
+      this.durationCache.set(url, dur);
+      return dur;
+    }
     if (fallbackDuration && fallbackDuration > 0 && fallbackDuration !== 3.0) {
       this.durationCache.set(url, fallbackDuration);
       return fallbackDuration;
@@ -89,12 +190,167 @@ class HorrorSoundEngine {
     });
   }
 
-  // Play a custom uploaded audio URL (MP3, WAV, M4A, etc.) with strict single-play enforcement
+  // Play audio URL automatically using Web Audio API buffer (primary) or shared HTMLAudioElement (fallback)
   playAudioUrl(url, targetSeconds = 3, onProgress = null, onEnded = null) {
     this.stopAudio();
-    const audio = new Audio();
+    this.isPlayingAudio = true;
+
+    const ctx = this.getAudioContext();
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    let activeController = null;
+    const controller = {
+      stop: () => {
+        if (activeController && activeController.stop) {
+          activeController.stop();
+        }
+        this.stopAudio();
+      }
+    };
+
+    // 1. Play directly from decoded Web Audio buffer if ready (100% immune to autoplay restrictions)
+    if (this.audioBufferCache.has(url)) {
+      const buffer = this.audioBufferCache.get(url);
+      activeController = this._playAudioBuffer(buffer, targetSeconds, onProgress, onEnded);
+      return controller;
+    }
+
+    // 2. If decoding promise is currently pending, await briefly (up to 150ms)
+    if (this.bufferFetchPromises.has(url)) {
+      let isCancelled = false;
+      const fetchPromise = this.bufferFetchPromises.get(url);
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve('timeout'), 150));
+
+      Promise.race([fetchPromise, timeoutPromise]).then(res => {
+        if (isCancelled || !this.isPlayingAudio) return;
+
+        if (res && res !== 'timeout' && typeof res === 'object') {
+          activeController = this._playAudioBuffer(res, targetSeconds, onProgress, onEnded);
+        } else {
+          activeController = this._playViaAudioElement(url, targetSeconds, onProgress, onEnded);
+        }
+      }).catch(() => {
+        if (isCancelled || !this.isPlayingAudio) return;
+        activeController = this._playViaAudioElement(url, targetSeconds, onProgress, onEnded);
+      });
+
+      const origStop = controller.stop;
+      controller.stop = () => {
+        isCancelled = true;
+        origStop();
+      };
+      return controller;
+    }
+
+    // 3. Otherwise play immediately via HTMLAudioElement
+    activeController = this._playViaAudioElement(url, targetSeconds, onProgress, onEnded);
+    return controller;
+  }
+
+  // Web Audio API buffer playback engine (plays automatically without user gesture on active context)
+  _playAudioBuffer(buffer, targetSeconds = 3, onProgress = null, onEnded = null) {
+    const ctx = this.getAudioContext();
+    if (!ctx) return null;
+
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(1, ctx.currentTime);
+
+    source.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    const actualDuration = (buffer.duration && isFinite(buffer.duration))
+      ? Math.min(buffer.duration, targetSeconds)
+      : targetSeconds;
+
+    const startAudioTime = ctx.currentTime;
+    let isTerminated = false;
+    let progressInterval = null;
+    let endTimeout = null;
+
+    const terminate = () => {
+      if (isTerminated) return;
+      isTerminated = true;
+      clearInterval(progressInterval);
+      clearTimeout(endTimeout);
+      this.isPlayingAudio = false;
+
+      try {
+        source.stop();
+      } catch (e) {}
+      try {
+        source.disconnect();
+        gainNode.disconnect();
+      } catch (e) {}
+
+      if (this.currentBufferSource === source) {
+        this.currentBufferSource = null;
+      }
+
+      if (onEnded) onEnded();
+    };
+
+    this.currentBufferSource = source;
+
+    try {
+      source.start(0);
+    } catch (e) {
+      console.warn('Web Audio start buffer error:', e);
+      terminate();
+      return null;
+    }
+
+    progressInterval = setInterval(() => {
+      if (isTerminated) return;
+      const elapsed = ctx.currentTime - startAudioTime;
+      const cur = Math.min(elapsed, actualDuration);
+      const rem = Math.max(0, actualDuration - cur);
+
+      if (onProgress) {
+        onProgress({
+          currentTime: cur,
+          duration: actualDuration,
+          remainingTime: Math.ceil(rem),
+          progress: (cur / actualDuration) * 100
+        });
+      }
+
+      if (cur >= actualDuration) {
+        terminate();
+      }
+    }, 100);
+
+    source.onended = () => {
+      terminate();
+    };
+
+    endTimeout = setTimeout(() => {
+      terminate();
+    }, actualDuration * 1000 + 100);
+
+    return {
+      stop: () => {
+        terminate();
+      }
+    };
+  }
+
+  // HTMLAudioElement playback engine using shared persistent audio element
+  _playViaAudioElement(url, targetSeconds = 3, onProgress = null, onEnded = null) {
+    const audio = this.getSharedAudioElement() || new Audio();
     audio.src = url;
     audio.controls = false;
+    audio.volume = 1.0;
+    audio.muted = false;
+    audio.setAttribute('playsinline', 'true');
+    audio.setAttribute('webkit-playsinline', 'true');
     this.currentAudioElement = audio;
 
     let timer = null;
@@ -106,12 +362,12 @@ class HorrorSoundEngine {
       isTerminated = true;
       clearInterval(progressInterval);
       clearTimeout(timer);
+      this.isPlayingAudio = false;
       this.stopAudio();
       if (onEnded) onEnded();
     };
 
-    audio.addEventListener('loadedmetadata', () => {
-      // Use actual audio duration if smaller than targetSeconds
+    const handleLoadedMetadata = () => {
       const actualDuration = (audio.duration && isFinite(audio.duration))
         ? Math.min(audio.duration, targetSeconds)
         : targetSeconds;
@@ -119,9 +375,9 @@ class HorrorSoundEngine {
       timer = setTimeout(() => {
         terminate();
       }, actualDuration * 1000);
-    });
+    };
 
-    audio.addEventListener('play', () => {
+    const handlePlay = () => {
       progressInterval = setInterval(() => {
         if (isTerminated) return;
         const dur = (audio.duration && isFinite(audio.duration)) 
@@ -143,22 +399,54 @@ class HorrorSoundEngine {
           terminate();
         }
       }, 100);
-    });
+    };
 
-    audio.addEventListener('ended', terminate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+    audio.addEventListener('play', handlePlay, { once: true });
+    audio.addEventListener('ended', terminate, { once: true });
     audio.addEventListener('error', (e) => {
       console.warn('Audio playback error:', e);
       terminate();
-    });
+    }, { once: true });
 
-    audio.play().catch(err => {
-      console.warn('Audio play rejection:', err);
-      if (err.name === 'NotAllowedError') {
-        window.dispatchEvent(new CustomEvent('horror_autoplay_blocked', { detail: { audio } }));
-        return;
-      }
-      terminate();
-    });
+    const playPromise = audio.play();
+    if (playPromise) {
+      playPromise.catch(err => {
+        console.warn('Audio play rejection, setting seamless auto-recovery:', err);
+
+        if (err.name === 'NotAllowedError') {
+          const ctx = this.getAudioContext();
+          if (ctx && ctx.state === 'suspended') {
+            ctx.resume().catch(() => {});
+          }
+
+          // Transparent auto-recovery: the instant the participant touches anywhere on the screen,
+          // play resumes automatically without showing any button!
+          this.pendingAutoPlayRecovery = () => {
+            try {
+              audio.play().catch(() => {});
+            } catch (e) {}
+          };
+
+          const onUserTouch = () => {
+            window.removeEventListener('touchstart', onUserTouch);
+            window.removeEventListener('pointerdown', onUserTouch);
+            window.removeEventListener('click', onUserTouch);
+            if (this.pendingAutoPlayRecovery) {
+              this.pendingAutoPlayRecovery();
+              this.pendingAutoPlayRecovery = null;
+            }
+          };
+          window.addEventListener('touchstart', onUserTouch, { capture: true, passive: true, once: true });
+          window.addEventListener('pointerdown', onUserTouch, { capture: true, passive: true, once: true });
+          window.addEventListener('click', onUserTouch, { capture: true, passive: true, once: true });
+
+          return;
+        }
+
+        terminate();
+      });
+    }
 
     return {
       stop: () => {
@@ -167,9 +455,21 @@ class HorrorSoundEngine {
     };
   }
 
-
   // Stop currently playing audio or synth sequence
   stopAudio() {
+    this.isPlayingAudio = false;
+    this.pendingAutoPlayRecovery = null;
+
+    if (this.currentBufferSource) {
+      try {
+        this.currentBufferSource.stop();
+      } catch (e) {}
+      try {
+        this.currentBufferSource.disconnect();
+      } catch (e) {}
+      this.currentBufferSource = null;
+    }
+
     if (this.currentAudioElement) {
       try {
         this.currentAudioElement.pause();
@@ -177,6 +477,7 @@ class HorrorSoundEngine {
       } catch (e) {}
       this.currentAudioElement = null;
     }
+
     this.activeSynthTimeouts.forEach(t => clearTimeout(t));
     this.activeSynthTimeouts = [];
   }
@@ -582,3 +883,14 @@ class HorrorSoundEngine {
 }
 
 export const horrorSoundEngine = new HorrorSoundEngine();
+
+// Auto-initialize global touch, pointer and click listeners for transparent mobile audio unlock
+if (typeof window !== 'undefined') {
+  const unlockEvents = ['touchstart', 'touchend', 'pointerdown', 'mousedown', 'keydown', 'click'];
+  const handleUserGesture = () => {
+    horrorSoundEngine.unlock();
+  };
+  unlockEvents.forEach(evt => {
+    window.addEventListener(evt, handleUserGesture, { capture: true, passive: true });
+  });
+}
